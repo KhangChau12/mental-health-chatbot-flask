@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Giới thiệu - Trợ lý Sức khỏe Tâm thần{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">Giới thiệu về Trợ lý Sức khỏe Tâm thần</h1>
+        <div class="header-underline"></div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Tổng quan</h2>
+        <p>Trợ lý Sức khỏe Tâm thần là một chatbot sàng lọc sức khỏe tâm thần, được xây dựng trên nền tảng Flask và tích hợp với mô hình AI Llama 3.3 70B thông qua Together AI. Ứng dụng này được thiết kế để cung cấp công cụ sàng lọc ban đầu về các vấn đề sức khỏe tâm thần phổ biến như trầm cảm, lo âu và căng thẳng.</p>
+        
+        <div class="info-highlight">
+            <div class="info-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+            </div>
+            <div class="info-content">
+                <strong>Lưu ý quan trọng:</strong> Trợ lý này chỉ là công cụ sàng lọc sơ bộ và không phải là công cụ chẩn đoán chính thức. Không có chatbot hay ứng dụng nào có thể thay thế cho đánh giá chuyên nghiệp từ các chuyên gia sức khỏe tâm thần có trình độ.
+            </div>
+        </div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Khả năng của chatbot</h2>
+        <div class="feature-grid">
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                </div>
+                <h3>Sàng lọc ban đầu</h3>
+                <p>Thực hiện sàng lọc cơ bản về các vấn đề sức khỏe tâm thần phổ biến thông qua cuộc trò chuyện tự nhiên.</p>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" y1="22" x2="4" y2="15"></line>
+                    </svg>
+                </div>
+                <h3>Đánh giá tiêu chuẩn</h3>
+                <p>Sử dụng các bộ câu hỏi đã được nghiên cứu và kiểm chứng như PHQ-9, GAD-7, và DASS-21.</p>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <h3>Phát hiện nguy cơ</h3>
+                <p>Nhận diện các dấu hiệu cảnh báo tiềm ẩn và cung cấp tài nguyên khẩn cấp khi cần thiết.</p>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <h3>Phản hồi tự nhiên</h3>
+                <p>Tương tác với giọng điệu đồng cảm, nhờ tích hợp mô hình ngôn ngữ lớn Llama 3.3 70B.</p>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                </div>
+                <h3>Tóm tắt kết quả</h3>
+                <p>Cung cấp bảng tóm tắt kết quả sàng lọc và đề xuất các bước tiếp theo.</p>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                </div>
+                <h3>Tài nguyên hỗ trợ</h3>
+                <p>Đề xuất tài nguyên hỗ trợ phù hợp dựa trên kết quả đánh giá và nhu cầu cá nhân.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Cách sử dụng chatbot</h2>
+        <div class="steps-container">
+            <div class="step-item">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Bắt đầu cuộc trò chuyện</h3>
+                    <p>Mở trang chủ và bắt đầu trò chuyện với chatbot. Chia sẻ lý do bạn tìm kiếm hỗ trợ.</p>
+                </div>
+            </div>
+            
+            <div class="step-item">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Trả lời các câu hỏi sàng lọc</h3>
+                    <p>Chatbot sẽ đặt một loạt câu hỏi để đánh giá trạng thái sức khỏe tâm thần của bạn.</p>
+                </div>
+            </div>
+            
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Nhận kết quả và đề xuất</h3>
+                    <p>Sau khi hoàn thành, chatbot sẽ cung cấp tóm tắt kết quả và đề xuất các bước tiếp theo.</p>
+                </div>
+            </div>
+            
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Khám phá tài nguyên hỗ trợ</h3>
+                    <p>Xem qua các tài nguyên được đề xuất và thông tin thêm về vấn đề của bạn.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Các bộ đánh giá được sử dụng</h2>
+        <div class="assessment-grid">
+            <div class="assessment-item">
+                <h3>PHQ-9</h3>
+                <p><strong>Patient Health Questionnaire</strong></p>
+                <p>Bộ câu hỏi gồm 9 mục đánh giá triệu chứng trầm cảm, với thang điểm từ 0-27.</p>
+                <div class="assessment-levels">
+                    <span class="level mild">Nhẹ: 5-9</span>
+                    <span class="level moderate">Vừa: 10-14</span>
+                    <span class="level severe">Nặng: 15+</span>
+                </div>
+            </div>
+            
+            <div class="assessment-item">
+                <h3>GAD-7</h3>
+                <p><strong>Generalized Anxiety Disorder</strong></p>
+                <p>Bộ câu hỏi gồm 7 mục đánh giá triệu chứng lo âu, với thang điểm từ 0-21.</p>
+                <div class="assessment-levels">
+                    <span class="level mild">Nhẹ: 5-9</span>
+                    <span class="level moderate">Vừa: 10-14</span>
+                    <span class="level severe">Nặng: 15+</span>
+                </div>
+            </div>
+            
+            <div class="assessment-item">
+                <h3>DASS-21</h3>
+                <p><strong>Depression, Anxiety and Stress Scale</strong></p>
+                <p>Bộ câu hỏi gồm 21 mục đánh giá ba lĩnh vực: trầm cảm, lo âu và căng thẳng.</p>
+                <div class="assessment-levels">
+                    <span class="level mild">Nhẹ</span>
+                    <span class="level moderate">Vừa</span>
+                    <span class="level severe">Nặng</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Câu hỏi thường gặp</h2>
+        <div class="faq-container">
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Chatbot này có thay thế được chuyên gia tâm lý không?</h3>
+                    <div class="faq-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Không. Chatbot này chỉ là công cụ sàng lọc sơ bộ và không thể thay thế cho đánh giá chuyên nghiệp. Nó được thiết kế để hỗ trợ, không phải để chẩn đoán hoặc điều trị. Nếu bạn đang gặp vấn đề về sức khỏe tâm thần, hãy luôn tìm kiếm sự trợ giúp từ chuyên gia y tế có trình độ.</p>
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Dữ liệu của tôi có được bảo mật không?</h3>
+                    <div class="faq-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Chúng tôi coi trọng quyền riêng tư của bạn. Dữ liệu của các cuộc trò chuyện được lưu trữ tạm thời trong phiên và không được lưu trữ lâu dài. Để biết thêm thông tin chi tiết, vui lòng xem <a href="{{ url_for('privacy') }}">Chính sách quyền riêng tư</a> của chúng tôi.</p>
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Kết quả sàng lọc có chính xác không?</h3>
+                    <div class="faq-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Chatbot sử dụng các bộ câu hỏi được nghiên cứu và công nhận rộng rãi (PHQ-9, GAD-7, DASS-21), tuy nhiên kết quả chỉ mang tính chất sàng lọc ban đầu. Độ chính xác có thể bị ảnh hưởng bởi nhiều yếu tố, bao gồm cách bạn diễn đạt câu trả lời và giới hạn của công nghệ AI. Luôn tham khảo ý kiến chuyên gia để có đánh giá toàn diện.</p>
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Làm cách nào để khởi động lại cuộc trò chuyện?</h3>
+                    <div class="faq-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Bạn có thể khởi động lại cuộc trò chuyện bất cứ lúc nào bằng cách nhấp vào nút làm mới (biểu tượng vòng tròn mũi tên) ở góc trên cùng bên trái của giao diện trò chuyện. Điều này sẽ xóa toàn bộ lịch sử trò chuyện hiện tại và bắt đầu một cuộc trò chuyện mới.</p>
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Làm gì nếu tôi đang gặp khủng hoảng?</h3>
+                    <div class="faq-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Nếu bạn đang có ý định tự hại bản thân hoặc đang trong tình trạng khủng hoảng, vui lòng liên hệ ngay với các dịch vụ hỗ trợ khẩn cấp:</p>
+                    <ul>
+                        <li>Đường dây nóng phòng chống tự tử: 1800-8440 (miễn phí)</li>
+                        <li>Gọi cho người thân hoặc bạn bè tin cậy</li>
+                        <li>Đến phòng cấp cứu gần nhất</li>
+                        <li>Gọi số cấp cứu: 115</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-section">
+        <h2 class="section-heading">Công nghệ sử dụng</h2>
+        <div class="tech-container">
+            <div class="tech-item">
+                <h3>Backend</h3>
+                <ul class="tech-list">
+                    <li>Flask (Python)</li>
+                    <li>Together AI API</li>
+                    <li>Flask Session</li>
+                </ul>
+            </div>
+            
+            <div class="tech-item">
+                <h3>Mô hình AI</h3>
+                <ul class="tech-list">
+                    <li>Llama 3.3 70B</li>
+                    <li>Tối ưu hóa cho tiếng Việt</li>
+                    <li>Contextual prompting</li>
+                </ul>
+            </div>
+            
+            <div class="tech-item">
+                <h3>Frontend</h3>
+                <ul class="tech-list">
+                    <li>HTML5, CSS3</li>
+                    <li>Vanilla JavaScript</li>
+                    <li>Jinja2 Templates</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Script để xử lý việc mở/đóng câu hỏi FAQ
+    document.addEventListener('DOMContentLoaded', function() {
+        const faqItems = document.querySelectorAll('.faq-question');
+        
+        faqItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const parent = this.parentNode;
+                parent.classList.toggle('active');
+            });
+        });
+    });
+</script>
+{% endblock %}
