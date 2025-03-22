@@ -1996,3 +1996,478 @@ input:checked + .toggle-slider:before {
       transform: translateY(0);
     }
   }
+
+/* Thiết kế dashboard tiến trình */
+.progress-dashboard {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    background: linear-gradient(to bottom, rgba(46, 46, 46, 0.6), rgba(36, 36, 36, 0.6));
+    border-radius: 12px;
+    border: 1px solid rgba(var(--color-border), 0.7);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    max-height: 0; /* Initially collapsed */
+    opacity: 0;
+    margin-bottom: 0;
+    pointer-events: none; /* Prevent interaction when hidden */
+}
+
+.progress-dashboard.expanded {
+    max-height: 500px; /* Adjust based on your dashboard height */
+    opacity: 1;
+    margin-bottom: 1.5rem;
+    pointer-events: auto; /* Allow interaction when visible */
+}
+
+/* New CSS for the toggle button */
+.progress-toggle {
+    display: flex;
+    justify-content: center;
+    margin-top: -1px;
+    position: relative;
+    z-index: 5;
+}
+
+.progress-toggle-button {
+    width: 32px;
+    height: 16px;
+    background-color: rgb(var(--color-background-lighter));
+    border: 1px solid rgb(var(--color-border));
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgb(150, 150, 150);
+    padding: 0;
+    transition: all 0.3s ease;
+}
+
+.progress-toggle-button:hover {
+    color: rgb(var(--color-highlight));
+}
+
+.progress-toggle-button svg {
+    transition: transform 0.3s ease;
+}
+
+.progress-toggle-button.expanded svg {
+    transform: rotate(180deg);
+}
+
+/* Phần tổng quan */
+.progress-overview {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid rgba(var(--color-border), 0.5);
+}
+
+.progress-percentage {
+    margin-right: 1.5rem;
+    flex-shrink: 0;
+}
+
+.percentage-ring {
+    width: 70px;
+    height: 70px;
+}
+
+.circular-chart {
+    width: 100%;
+    height: 100%;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: rgba(var(--color-border), 0.5);
+    stroke-width: 2.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 2.8;
+    stroke: rgb(var(--color-highlight));
+    stroke-linecap: round;
+    animation: progress 1s ease-out forwards;
+}
+
+.percentage {
+    fill: white;
+    font-size: 0.4em;
+    text-anchor: middle;
+    font-weight: 600;
+    dominant-baseline: middle;
+}
+
+.progress-status {
+    flex-grow: 1;
+}
+
+.status-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    background: linear-gradient(to right, rgb(var(--color-highlight)), rgb(var(--color-highlight-secondary)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.status-subtitle {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Roadmap */
+.progress-roadmap {
+    padding: 1.5rem;
+    position: relative;
+}
+
+.roadmap-track {
+    position: relative;
+    height: 70px;
+}
+
+.roadmap-line {
+    position: absolute;
+    top: 33px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: rgba(var(--color-border), 0.5);
+    border-radius: 4px;
+}
+
+.roadmap-fill {
+    position: absolute;
+    top: 33px;
+    left: 0;
+    height: 4px;
+    background: linear-gradient(to right, rgb(var(--color-highlight)), rgb(var(--color-highlight-secondary)));
+    border-radius: 4px;
+    transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1;
+}
+
+.roadmap-checkpoints {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    z-index: 2;
+}
+
+.checkpoint-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.checkpoint-node {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    margin-bottom: 8px;
+}
+
+.node-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgb(43, 43, 43);
+    border: 2px solid rgba(var(--color-border), 0.7);
+    transition: all 0.4s ease;
+}
+
+.node-icon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    z-index: 1;
+    transition: all 0.4s ease;
+}
+
+.checkpoint-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    transition: all 0.3s ease;
+    max-width: 90px;
+}
+
+.checkpoint-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.checkpoint-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+}
+
+.checkpoint-item:hover .checkpoint-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-4px);
+}
+
+/* Phase states */
+.checkpoint-item.completed .node-indicator {
+    background-color: rgba(var(--color-highlight), 0.2);
+    border-color: rgb(var(--color-highlight));
+}
+
+.checkpoint-item.completed .node-icon {
+    color: white;
+}
+
+.checkpoint-item.completed .checkpoint-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.checkpoint-item.active .node-indicator {
+    background: linear-gradient(to right, rgb(var(--color-highlight)), rgb(var(--color-highlight-secondary)));
+    border-color: transparent;
+    box-shadow: 0 0 15px rgba(var(--color-highlight), 0.6);
+    transform: scale(1.1);
+}
+
+.checkpoint-item.active .node-icon {
+    color: white;
+}
+
+.checkpoint-item.active .checkpoint-label {
+    color: white;
+    font-weight: 600;
+}
+
+/* Progress details */
+.progress-details {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.detail-card {
+    background: rgba(46, 46, 46, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(var(--color-border), 0.7);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(to right, rgba(var(--color-highlight), 0.2), rgba(var(--color-highlight-secondary), 0.2));
+    border-bottom: 1px solid rgba(var(--color-border), 0.7);
+}
+
+.detail-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(to right, rgb(var(--color-highlight)), rgb(var(--color-highlight-secondary)));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-right: 0.75rem;
+    box-shadow: 0 2px 8px rgba(var(--color-highlight), 0.5);
+}
+
+.detail-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: white;
+}
+
+.detail-content {
+    padding: 1rem;
+}
+
+.detail-progress {
+    margin-bottom: 0.75rem;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.progress-bar {
+    height: 6px;
+    background-color: rgba(var(--color-border), 0.3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-value {
+    height: 100%;
+    background: linear-gradient(to right, rgb(var(--color-highlight)), rgb(var(--color-highlight-secondary)));
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.detail-info {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+}
+
+/* Animations */
+@keyframes progress {
+    0% {
+        stroke-dasharray: 0 100;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(var(--color-highlight), 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(var(--color-highlight), 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(var(--color-highlight), 0);
+    }
+}
+
+.pulse-animation {
+    animation: pulse 2s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .progress-dashboard {
+        border-radius: 8px;
+    }
+    
+    .progress-overview {
+        padding: 1rem;
+    }
+    
+    .percentage-ring {
+        width: 55px;
+        height: 55px;
+    }
+    
+    .status-title {
+        font-size: 1.1rem;
+    }
+    
+    .status-subtitle {
+        font-size: 0.8rem;
+    }
+    
+    .progress-roadmap {
+        padding: 1rem;
+    }
+    
+    .roadmap-track {
+        height: 90px;
+    }
+    
+    .roadmap-checkpoints {
+        flex-wrap: wrap;
+        justify-content: space-around;
+    }
+    
+    .checkpoint-item {
+        margin: 0 5px;
+        min-width: 60px;
+    }
+    
+    .checkpoint-node {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .node-indicator {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .node-icon {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .checkpoint-label {
+        font-size: 0.7rem;
+        max-width: 70px;
+    }
+    
+    .progress-details {
+        padding: 0 1rem 1rem;
+    }
+    
+    .detail-header {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .detail-icon {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .detail-content {
+        padding: 0.75rem;
+    }
+}
+
+/* Animation for phase transitions */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeInUp 0.5s ease forwards;
+}

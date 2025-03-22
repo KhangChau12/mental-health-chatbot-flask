@@ -85,11 +85,15 @@ mental-health-chatbot-flask/
 │   ├── css/
 │   │   └── style.css       # CSS chuyển từ globals.css + tailwind
 │   ├── js/
+│   │   ├── contact.js
+│   │   ├── terms.js
 │   │   └── chat.js         # JavaScript xử lý tương tác chat
 │   └── images/
 │       └── favicon.ico
 ├── templates/              # Templates HTML
 │   ├── base.html           # Template cơ sở
+│   ├── terms.html   
+│   ├── contact.html   
 │   ├── index.html          # Trang chính
 │   ├── about.html          # Trang giới thiệu
 │   ├── resources.html      # Trang tài nguyên

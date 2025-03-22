@@ -9,6 +9,7 @@ import json
 import datetime
 from flask import Flask, render_template, request, jsonify, session
 from flask_session import Session
+from data.questionnaires import questionnaires
 
 # Cấu hình logging
 logging.basicConfig(
@@ -86,13 +87,32 @@ def send_message():
         bot_msg_id = str(datetime.datetime.now().timestamp())
         timestamp = datetime.datetime.now().strftime('%H:%M')
         
+        # Tạo một đối tượng với thông tin chi tiết về đánh giá hiện tại
+        assessment_details = {}
+        if updated_chat_state.get('currentAssessment') in questionnaires:
+            current_assessment = questionnaires[updated_chat_state.get('currentAssessment')]
+            assessment_details = {
+                'name': current_assessment.get('name', ''),
+                'description': current_assessment.get('description', ''),
+                'id': current_assessment.get('id', '')
+            }
+        
         # Trả về phản hồi và trạng thái chat mới
         return jsonify({
             'text': bot_response,
             'id': bot_msg_id,
             'timestamp': timestamp,
             'state': updated_chat_state.get('state', ''),
-            'chatState': updated_chat_state  # Trả về trạng thái chat mới để client lưu
+            'chatState': {
+                'state': updated_chat_state.get('state', ''),
+                'currentAssessment': updated_chat_state.get('currentAssessment'),
+                'currentQuestionIndex': updated_chat_state.get('currentQuestionIndex', 0),
+                'totalQuestions': get_total_questions(updated_chat_state),
+                'scores': updated_chat_state.get('scores', {}),
+                'severityLevels': updated_chat_state.get('severityLevels', {}),
+                'flags': updated_chat_state.get('flags', {}),
+                'assessmentDetails': assessment_details  # Thêm thông tin chi tiết về bộ đánh giá
+            }
         })
         
     except Exception as e:
@@ -101,6 +121,13 @@ def send_message():
             'error': str(e),
             'text': "Xin lỗi, đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau."
         }), 500
+
+# Hàm trợ giúp để lấy tổng số câu hỏi
+def get_total_questions(chat_state):
+    current_assessment = chat_state.get('currentAssessment')
+    if current_assessment and current_assessment in questionnaires:
+        return len(questionnaires[current_assessment].get('questions', []))
+    return 0
 
 @app.route('/api/restart', methods=['POST'])
 def restart_chat():
@@ -125,7 +152,21 @@ def restart_chat():
         return jsonify({
             'success': True,
             'welcomeMessage': welcome_message,
-            'chatState': new_chat_state  # Trả về trạng thái chat mới cho client
+            'chatState': {
+                'state': new_chat_state.get('state', ''),
+                'currentAssessment': new_chat_state.get('currentAssessment'),
+                'currentQuestionIndex': new_chat_state.get('currentQuestionIndex', 0),
+                'totalQuestions': get_total_questions(new_chat_state),
+                'scores': new_chat_state.get('scores', {}),
+                'severityLevels': new_chat_state.get('severityLevels', {}),
+                'flags': new_chat_state.get('flags', {}),
+                # Thêm thông tin chi tiết về giai đoạn greeting
+                'assessmentDetails': {
+                    'name': 'Bắt đầu trò chuyện',
+                    'description': 'Chào mừng bạn đến với Trợ lý Sức khỏe Tâm thần',
+                    'id': 'greeting'
+                }
+            }
         })
         
     except Exception as e:
@@ -134,6 +175,20 @@ def restart_chat():
             'error': str(e),
             'success': False
         }), 500
+
+def get_assessment_details(assessment_id):
+    """
+    Hàm trợ giúp để lấy thông tin chi tiết về bộ đánh giá
+    """
+    if assessment_id in questionnaires:
+        assessment = questionnaires[assessment_id]
+        return {
+            'name': assessment.get('name', ''),
+            'description': assessment.get('description', ''),
+            'id': assessment.get('id', ''),
+            'questionCount': len(assessment.get('questions', []))
+        }
+    return {}
 
 @app.route('/api/toggle_ai', methods=['POST'])
 def toggle_ai():
