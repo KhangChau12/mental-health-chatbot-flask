@@ -6,7 +6,10 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=5000
+    PORT=5000 \
+    FLASK_APP=app.py \
+    SESSION_TYPE=filesystem \
+    SESSION_FILE_DIR=/app/flask_session
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,13 +26,13 @@ RUN pip install --upgrade pip && \
 # Copy application code
 COPY . .
 
+# Create necessary directories with proper permissions for sessions
+RUN mkdir -p /app/flask_session && \
+    chmod 777 /app/flask_session
+
 # Create non-root user for security
 RUN useradd -m appuser
 USER appuser
-
-# Create necessary directories with proper permissions
-RUN mkdir -p /tmp/flask_session && \
-    chmod 777 /tmp/flask_session
 
 # Expose port
 EXPOSE $PORT
