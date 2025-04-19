@@ -47,6 +47,7 @@ def initialize_chat(mode='ai'):
             'state': CHAT_STATES['INITIAL_SCREENING'],
             'currentAssessment': 'initialScreening',
             'currentQuestionIndex': 0,
+            'totalQuestions': len(questionnaires['initialScreening']['questions']),
             'userResponses': {},
             'scores': {},
             'severityLevels': {},
@@ -54,7 +55,8 @@ def initialize_chat(mode='ai'):
                 'suicideRisk': False
             },
             'interfaceMode': 'poll',  # Luôn sử dụng poll cho phiên bản logic
-            'botMessage': questionnaires['initialScreening']['questions'][0]['text']
+            'botMessage': questionnaires['initialScreening']['questions'][0]['text'],
+            'pollOptions': [option['text'] for option in questionnaires['initialScreening']['questions'][0]['options']]
         }
     
     # Chế độ AI: bắt đầu với greeting và trò chuyện tự nhiên
@@ -95,15 +97,16 @@ def process_message(chat_state, user_message):
 
     # Xác định chế độ giao diện hiện tại
     interface_mode = chat_state.get('interfaceMode', 'chat')
+    logger.info(f"Current interface mode: {interface_mode}")
     
-    # Nếu đang ở chế độ logic, luôn sử dụng poll
+    # Nếu đang ở chế độ poll, xử lý response poll trực tiếp
     if interface_mode == 'poll':
-        # Xử lý response poll trực tiếp thay vì tin nhắn
-        # Giả định user_message là chỉ số tùy chọn đã chọn
+        logger.info("Processing in poll mode")
         return handle_poll_message(chat_state, user_message)
     
     # Nếu đang ở chế độ AI (chat), xử lý dựa trên trạng thái
     state = chat_state.get('state')
+    logger.info(f"Processing in chat mode, state: {state}")
     
     if state == CHAT_STATES['GREETING']:
         return handle_greeting(chat_state, user_message)
@@ -186,13 +189,13 @@ def handle_poll_message(chat_state, user_message):
         option_index = -1
         
         # Nếu user_message là số, giả định là chỉ số tùy chọn
-        if user_message.isdigit():
+        if isinstance(user_message, str) and user_message.isdigit():
             option_index = int(user_message)
         else:
             # Nếu không, cố gắng so khớp với text của tùy chọn
             for i, option in enumerate(current_question['options']):
                 option_text = option.get('text', '').lower()
-                if option_text in user_message.lower():
+                if option_text in str(user_message).lower():
                     option_index = i
                     break
         
@@ -255,6 +258,7 @@ def handle_poll_message(chat_state, user_message):
                     next_question = questionnaires[next_assessment]['questions'][0]
                     updated_chat_state['botMessage'] = next_question['text']
                     updated_chat_state['pollOptions'] = [option['text'] for option in next_question['options']]
+                    updated_chat_state['totalQuestions'] = len(questionnaires[next_assessment]['questions'])
                     return updated_chat_state
             
             # Nếu chuyển sang summary hoặc trạng thái khác
@@ -283,6 +287,50 @@ def handle_poll_message(chat_state, user_message):
             **chat_state,
             'botMessage': "Xin lỗi, đã xảy ra lỗi khi xử lý câu trả lời của bạn. Vui lòng thử lại."
         }
+
+def transition_to_poll_mode(chat_state, assessment_id, transition_message=""):
+    """
+    Hàm xử lý chuyển đổi từ chat sang poll
+    
+    Args:
+        chat_state: Dict trạng thái chat hiện tại
+        assessment_id: ID của bộ đánh giá cần chuyển sang
+        transition_message: Thông điệp chuyển tiếp tùy chỉnh
+        
+    Returns:
+        Dict trạng thái chat đã cập nhật
+    """
+    if not assessment_id or assessment_id not in questionnaires:
+        logger.error(f"Invalid assessment ID for transition: {assessment_id}")
+        return chat_state  # Không thay đổi nếu assessment không hợp lệ
+    
+    assessment = questionnaires[assessment_id]
+    assessment_name = assessment.get('name', assessment_id)
+    
+    # Tạo thông điệp chuyển tiếp rõ ràng
+    if not transition_message:
+        assessment_display_name = {
+            'phq9': 'trầm cảm',
+            'gad7': 'lo âu',
+            'dass21_stress': 'căng thẳng'
+        }.get(assessment_id, 'sức khỏe tâm thần')
+        
+        transition_message = f"Cảm ơn bạn đã chia sẻ. Dựa trên những gì bạn đã nói, tôi muốn đánh giá chi tiết hơn về {assessment_display_name} của bạn. "
+    
+    transition_message += "Từ giờ, tôi sẽ chuyển sang định dạng có các nút để bạn dễ dàng lựa chọn câu trả lời."
+    
+    logger.info(f"Transitioning to poll mode with assessment: {assessment_id}")
+    
+    return {
+        **chat_state,
+        'state': CHAT_STATES['POLL_INTERACTION'],
+        'currentAssessment': assessment_id,
+        'currentQuestionIndex': 0,
+        'totalQuestions': len(assessment.get('questions', [])),
+        'interfaceMode': 'poll',
+        'botMessage': f"{transition_message}\n\n{assessment['questions'][0]['text']}",
+        'pollOptions': [option['text'] for option in assessment['questions'][0]['options']]
+    }
     
 def prepare_detailed_assessment(chat_state, asked_questions, scores, flags, summary_answers=None):
     """
@@ -301,42 +349,25 @@ def prepare_detailed_assessment(chat_state, asked_questions, scores, flags, summ
     # Xử lý kết quả từ trò chuyện tự nhiên
     category_scores = calculate_natural_conversation_scores(asked_questions, scores)
     
-    # Thông báo chuyển tiếp
-    transition_message = "Cảm ơn bạn đã chia sẻ. Dựa trên những gì bạn đã nói, tôi muốn đánh giá chi tiết hơn "
-    
-    # Xác định loại đánh giá chuyên sâu cần thực hiện
-    assessment_needed = determine_assessment_needed(category_scores)
-    
     # Đảm bảo summary_answers không bị None
     if summary_answers is None:
         summary_answers = {}
     
     # Xử lý nguy cơ tự tử nếu phát hiện
     if flags.get('suicideRisk'):
-        return {
-            **chat_state,
-            'state': CHAT_STATES['SUICIDE_ASSESSMENT'],
-            'currentAssessment': 'suicideRiskAssessment',
-            'currentQuestionIndex': 0,
-            'scores': {
-                'initialScreening': category_scores
-            },
-            'severityLevels': {
-                'initialScreening': get_severity_level(category_scores, questionnaires['initialScreening'])
-            },
-            'flags': flags,
-            'naturalConversation': {
-                'askedQuestions': asked_questions,
-                'scores': scores,
-                'summaryAnswers': summary_answers
-            },
-            'interfaceMode': 'poll',
-            'botMessage': "Tôi nhận thấy một số điều bạn đã chia sẻ cho thấy bạn có thể đang gặp khó khăn nghiêm trọng. Tôi muốn hỏi thêm một vài câu hỏi để hiểu rõ hơn. Bây giờ tôi sẽ chuyển sang định dạng có các nút để bạn dễ dàng lựa chọn câu trả lời.\n\n" + questionnaires['suicideRiskAssessment']['questions'][0]['text'],
-            'pollOptions': [option['text'] for option in questionnaires['suicideRiskAssessment']['questions'][0]['options']]
-        }
+        logger.info("Suicide risk detected, transitioning to suicide assessment")
+        return transition_to_poll_mode(
+            chat_state,
+            'suicideRiskAssessment',
+            "Tôi nhận thấy một số điều bạn đã chia sẻ cho thấy bạn có thể đang gặp khó khăn nghiêm trọng. Tôi muốn hỏi thêm một vài câu hỏi để hiểu rõ hơn. "
+        )
+    
+    # Xác định loại đánh giá chuyên sâu cần thực hiện
+    assessment_needed = determine_assessment_needed(category_scores)
     
     # Nếu không cần đánh giá chi tiết, chuyển sang tóm tắt
     if not assessment_needed:
+        logger.info("No detailed assessment needed, going to summary")
         return {
             **chat_state,
             'state': CHAT_STATES['SUMMARY'],
@@ -357,33 +388,8 @@ def prepare_detailed_assessment(chat_state, asked_questions, scores, flags, summ
         }
     
     # Chuyển sang đánh giá chi tiết với giao diện poll
-    assessment_name = {
-        'phq9': 'trầm cảm',
-        'gad7': 'lo âu',
-        'dass21_stress': 'căng thẳng'
-    }.get(assessment_needed, 'sức khỏe tâm thần')
-    
-    return {
-        **chat_state,
-        'state': CHAT_STATES['POLL_INTERACTION'],
-        'currentAssessment': assessment_needed,
-        'currentQuestionIndex': 0,
-        'scores': {
-            'initialScreening': category_scores
-        },
-        'severityLevels': {
-            'initialScreening': get_severity_level(category_scores, questionnaires['initialScreening'])
-        },
-        'flags': flags,
-        'naturalConversation': {
-            'askedQuestions': asked_questions,
-            'scores': scores,
-            'summaryAnswers': summary_answers
-        },
-        'interfaceMode': 'poll',
-        'botMessage': f"{transition_message}{assessment_name} của bạn. Từ giờ, tôi sẽ chuyển sang định dạng có các nút để bạn dễ dàng lựa chọn câu trả lời.\n\n{questionnaires[assessment_needed]['questions'][0]['text']}",
-        'pollOptions': [option['text'] for option in questionnaires[assessment_needed]['questions'][0]['options']]
-    }
+    logger.info(f"Transitioning to detailed assessment: {assessment_needed}")
+    return transition_to_poll_mode(chat_state, assessment_needed)
 
 def calculate_natural_conversation_scores(asked_questions, scores):
     """
@@ -482,6 +488,8 @@ def handle_poll_interaction(chat_state, user_message):
         Dict trạng thái chat đã cập nhật
     """
     assessment_id = chat_state.get('currentAssessment')
+    logger.info(f"Poll interaction for assessment: {assessment_id}")
+    
     if not assessment_id or assessment_id not in questionnaires:
         logger.error(f"Invalid assessment {assessment_id} in poll interaction")
         return {
@@ -504,7 +512,7 @@ def handle_poll_interaction(chat_state, user_message):
     # Xử lý phản hồi người dùng
     try:
         # Nếu tin nhắn người dùng là chỉ số của tùy chọn đã chọn
-        if user_message.isdigit() and 0 <= int(user_message) < len(current_question['options']):
+        if isinstance(user_message, str) and user_message.isdigit() and 0 <= int(user_message) < len(current_question['options']):
             option_index = int(user_message)
             option_value = current_question['options'][option_index]['value']
         else:
@@ -566,6 +574,7 @@ def handle_poll_interaction(chat_state, user_message):
                 if severity in ['high', 'severe']:
                     additional_message = emergency_message + "\n\n"
                 
+                logger.info("Completed suicide assessment, returning to chat mode")
                 return {
                     **chat_state,
                     'state': next_state,
@@ -582,7 +591,7 @@ def handle_poll_interaction(chat_state, user_message):
                 }
             
             # Cho đánh giá thông thường
-            # Có thể thêm logic để xác định liệu có cần đánh giá bổ sung hay không
+            logger.info(f"Completed assessment {assessment_id}, going to summary")
             return {
                 **chat_state,
                 'state': CHAT_STATES['SUMMARY'],
@@ -600,6 +609,7 @@ def handle_poll_interaction(chat_state, user_message):
         
         # Nếu chưa hết câu hỏi, hiển thị câu hỏi tiếp theo
         next_question = assessment['questions'][next_question_index]
+        logger.info(f"Moving to next question {next_question_index} in assessment {assessment_id}")
         
         return {
             **chat_state,
@@ -730,14 +740,15 @@ def determine_next_state(chat_state, assessment, severity, flags):
     """
     Xác định trạng thái tiếp theo dựa trên kết quả đánh giá
     """
-    # Logic giữ nguyên từ phiên bản cũ
     try:
         # Nếu phát hiện nguy cơ tự tử, chuyển sang đánh giá tự tử
         if flags.get('suicideRisk', False) and assessment.get('id') != 'suicideRiskAssessment':
+            logger.info("Suicide risk detected, moving to suicide assessment")
             return {
                 'state': CHAT_STATES['SUICIDE_ASSESSMENT'],
                 'currentAssessment': 'suicideRiskAssessment',
                 'currentQuestionIndex': 0,
+                'totalQuestions': len(questionnaires['suicideRiskAssessment']['questions']),
                 'interfaceMode': 'poll',
                 'botMessage': f"Tôi nhận thấy bạn đã đề cập đến suy nghĩ về cái chết hoặc tự làm hại bản thân. Tôi muốn hỏi thêm một vài câu hỏi để hiểu rõ hơn tình hình.\n\n{questionnaires['suicideRiskAssessment']['questions'][0]['text']}",
                 'pollOptions': [option['text'] for option in questionnaires['suicideRiskAssessment']['questions'][0]['options']]
@@ -745,6 +756,7 @@ def determine_next_state(chat_state, assessment, severity, flags):
         
         if assessment.get('id') == 'suicideRiskAssessment':
             risk_level = severity
+            logger.info(f"Suicide assessment completed with level: {risk_level}")
             
             if risk_level in ['severe', 'high']:
                 return {
@@ -763,22 +775,26 @@ def determine_next_state(chat_state, assessment, severity, flags):
         if assessment.get('id') == 'initialScreening':
             # Kiểm tra các danh mục trung bình hoặc nặng
             if isinstance(severity, dict):
+                logger.info(f"Initial screening completed with severity: {severity}")
                 for category, level in severity.items():
                     if level in ['moderate', 'severe']:
                         # Chuyển sang đánh giá chi tiết cho danh mục này
                         next_assessment = assessment.get('nextAssessment', {}).get(category)
                         if next_assessment and next_assessment in questionnaires:
                             category_name = "tâm trạng" if category == 'depression' else "lo âu" if category == 'anxiety' else "căng thẳng"
+                            logger.info(f"Moving to detailed assessment for {category}: {next_assessment}")
                             return {
                                 'state': CHAT_STATES['POLL_INTERACTION'],  # Chuyển sang giao diện poll
                                 'currentAssessment': next_assessment,
                                 'currentQuestionIndex': 0,
+                                'totalQuestions': len(questionnaires[next_assessment]['questions']),
                                 'interfaceMode': 'poll',
                                 'botMessage': f"Dựa trên câu trả lời của bạn, tôi muốn hỏi thêm một số câu hỏi cụ thể về {category_name} của bạn.\n\n{questionnaires[next_assessment]['questions'][0]['text']}",
                                 'pollOptions': [option['text'] for option in questionnaires[next_assessment]['questions'][0]['options']]
                             }
             
             # Nếu không có vấn đề nghiêm trọng, chuyển sang tóm tắt
+            logger.info("No serious issues detected, moving to summary")
             return {
                 'state': CHAT_STATES['SUMMARY'],
                 'interfaceMode': 'chat',
@@ -786,6 +802,7 @@ def determine_next_state(chat_state, assessment, severity, flags):
             }
         
         # Cho các đánh giá chi tiết, chuyển sang tóm tắt
+        logger.info(f"Detailed assessment {assessment.get('id')} completed, moving to summary")
         return {
             'state': CHAT_STATES['SUMMARY'],
             'interfaceMode': 'chat',
@@ -847,7 +864,7 @@ def parse_response(user_message, question, use_ai=False):
     # Phương pháp hiện tại nếu AI không được sử dụng hoặc gặp lỗi
     # Đối với tin nhắn dạng số
     try:
-        num_value = int(user_message.strip())
+        num_value = int(str(user_message).strip())
         # Kiểm tra xem giá trị có trong phạm vi tùy chọn không
         option_values = [opt.get('value') for opt in question['options']]
         if num_value in option_values:
@@ -856,7 +873,7 @@ def parse_response(user_message, question, use_ai=False):
         pass
     
     # Cố gắng khớp với văn bản tùy chọn
-    lowercase_message = user_message.lower()
+    lowercase_message = str(user_message).lower()
     for option in question['options']:
         if option.get('text', '').lower() in lowercase_message:
             return option.get('value', 0)
@@ -896,7 +913,7 @@ def parse_natural_response(user_message, question_id):
         # Có thể mở rộng với phương pháp học máy hoặc NLP phức tạp hơn
         
         # Tìm các cụm từ biểu thị mức độ
-        message = user_message.lower()
+        message = str(user_message).lower()
         
         # Tìm các biểu thứ rõ ràng về tần suất
         high_frequency = ['luôn luôn', 'rất thường xuyên', 'liên tục', 'hầu hết thời gian', 'hầu như lúc nào cũng', 'chắc chắn']
@@ -1004,7 +1021,6 @@ def create_natural_response(user_message, score, follow_up, transition, next_que
     }
     
     # Chọn một lời thừa nhận ngẫu nhiên dựa trên điểm số
-    import random
     acknowledgement = random.choice(acknowledgements.get(score, acknowledgements[2]))
     
     # Tạo phản hồi
@@ -1056,12 +1072,11 @@ def handle_resources(chat_state, user_message):
     """
     Xử lý trạng thái tài nguyên
     """
-    # Logic giữ nguyên từ phiên bản cũ
     try:
         # Kiểm tra nếu người dùng muốn tài nguyên
         positive_words = ['có', 'vâng', 'đồng ý', 'muốn', 'ok', 'ừ', 'được']
         
-        if any(word in user_message.lower() for word in positive_words):
+        if any(word in str(user_message).lower() for word in positive_words):
             # Xác định tài nguyên phù hợp
             primary_disorder = 'depression'  # Mặc định
             primary_severity = 'mild'  # Mặc định
@@ -1112,7 +1127,7 @@ def handle_resources(chat_state, user_message):
                      'lo âu' if primary_disorder == 'anxiety' else 'căng thẳng') + " không?"
             }
         
-# Nếu người dùng không muốn tài nguyên
+        # Nếu người dùng không muốn tài nguyên
         return {
             **chat_state,
             'state': CHAT_STATES['CLOSING'],
@@ -1154,7 +1169,7 @@ def handle_disorder_info(chat_state, user_message):
         # Kiểm tra nếu người dùng muốn thông tin thêm
         positive_words = ['có', 'vâng', 'đồng ý', 'muốn', 'ok', 'ừ', 'được']
         
-        if any(word in user_message.lower() for word in positive_words):
+        if any(word in str(user_message).lower() for word in positive_words):
             disorder_info = format_disorder_info(chat_state.get('primaryDisorder', 'depression'))
             
             return {
@@ -1188,7 +1203,7 @@ def handle_closing(chat_state, user_message):
         # Kiểm tra nếu người dùng có thêm câu hỏi
         positive_words = ['có', 'vâng', 'câu hỏi', 'muốn hỏi']
         
-        if any(word in user_message.lower() for word in positive_words):
+        if any(word in str(user_message).lower() for word in positive_words):
             return {
                 **initialize_chat(),
                 'botMessage': "Bạn có câu hỏi gì? Tôi sẵn sàng trợ giúp."
@@ -1363,7 +1378,6 @@ def handle_greeting(chat_state, user_message):
         'botMessage': initial_response
     }
 
-
 def handle_collecting_issue(chat_state, user_message):
     """
     Thu thập vấn đề từ người dùng và chuyển sang trò chuyện tự nhiên
@@ -1400,12 +1414,11 @@ def handle_collecting_issue(chat_state, user_message):
         'botMessage': response
     }
 
-
 def determine_initial_question(user_message):
     """
     Xác định câu hỏi đầu tiên phù hợp dựa trên vấn đề người dùng đề cập
     """
-    message = user_message.lower()
+    message = str(user_message).lower()
     
     # Các từ khóa liên quan đến các chủ đề
     if any(word in message for word in ['mệt mỏi', 'kiệt sức', 'uể oải', 'không có năng lượng']):
@@ -1431,7 +1444,6 @@ def determine_initial_question(user_message):
     
     # Nếu không tìm thấy từ khóa nào, mặc định bắt đầu với feeling_tired
     return 'feeling_tired'
-
 
 def evaluate_conversation_for_question(chat_history, question_id):
     """
@@ -1481,7 +1493,6 @@ def evaluate_conversation_for_question(chat_history, question_id):
         logger.exception(f"Error evaluating conversation for question {question_id}", exc_info=e)
         return 2  # Giá trị an toàn
 
-
 def handle_natural_conversation(chat_state, user_message):
     """
     Xử lý trò chuyện tự nhiên với AI, tạo cảm giác tự nhiên không giống khảo sát
@@ -1523,17 +1534,15 @@ def handle_natural_conversation(chat_state, user_message):
                         updated_flags = dict(chat_state.get('flags', {}))
                         updated_flags['suicideRisk'] = True
                         
-                        return {
-                            **chat_state,
-                            'state': CHAT_STATES['SUICIDE_ASSESSMENT'],
-                            'currentAssessment': 'suicideRiskAssessment',
-                            'currentQuestionIndex': 0,
-                            'flags': updated_flags,
-                            'messageHistory': message_history,
-                            'interfaceMode': 'poll',
-                            'botMessage': "Tôi rất quan tâm đến những gì bạn vừa chia sẻ. Tôi muốn hỏi bạn một vài câu hỏi cụ thể hơn. Tôi sẽ chuyển sang định dạng có các nút để bạn dễ dàng lựa chọn.\n\n" + questionnaires['suicideRiskAssessment']['questions'][0]['text'],
-                            'pollOptions': [option['text'] for option in questionnaires['suicideRiskAssessment']['questions'][0]['options']]
-                        }
+                        return transition_to_poll_mode(
+                            {
+                                **chat_state,
+                                'flags': updated_flags,
+                                'messageHistory': message_history
+                            },
+                            'suicideRiskAssessment',
+                            "Tôi rất quan tâm đến những gì bạn vừa chia sẻ. Tôi muốn hỏi bạn một vài câu hỏi cụ thể hơn. "
+                        )
                 except Exception as e:
                     logger.error(f"Error evaluating response: {str(e)}")
         
@@ -1584,12 +1593,12 @@ def handle_natural_conversation(chat_state, user_message):
             # Thêm follow-up nếu cần
             follow_up = ""
             if current_question_id == next_question_id and random.random() < 0.7:
-                follow_up = get_random_question(current_question_id, "follow_ups") or ""
+                follow_up = get_random_question(current_question_id, "follow_ups")
             
             # Thêm câu chuyển tiếp nếu chuyển chủ đề
             transition = ""
             if current_question_id != next_question_id:
-                transition = get_random_question(current_question_id, "transitions") or ""
+                transition = get_random_question(current_question_id, "transitions")
             
             # Câu hỏi tiếp theo
             next_question = get_random_question(next_question_id)
@@ -1598,10 +1607,12 @@ def handle_natural_conversation(chat_state, user_message):
             bot_message = acknowledgement
             if follow_up:
                 bot_message += " " + follow_up
-            if transition:
+            elif transition:
                 bot_message += " " + transition
-            bot_message += " " + next_question
-        
+            
+            if next_question:
+                bot_message += " " + next_question
+                
         # Cập nhật lịch sử
         message_history.append({'role': 'assistant', 'content': bot_message})
         
