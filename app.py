@@ -356,11 +356,9 @@ def poll_flow():
             'error': str(e)
         }), 500
     
-    # Kiểm tra môi trường và điều chỉnh cấu hình session
-if os.environ.get('VERCEL_ENV') == 'production':
+if os.environ.get('RENDER'):
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_FILE_DIR'] = '/tmp/flask_session'
-    # Đảm bảo thư mục tồn tại
     os.makedirs('/tmp/flask_session', exist_ok=True)
 
 # Thêm handler cho Vercel serverless
@@ -368,6 +366,3 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
     
-# Handler cho Vercel serverless function
-def handler(event, context):
-    return app
