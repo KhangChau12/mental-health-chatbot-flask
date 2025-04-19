@@ -25,16 +25,6 @@
 - **LLM Enhancement**: Tích hợp Llama 3.3 70B để làm phong phú phản hồi, tạo cuộc trò chuyện tự nhiên và đồng cảm
 - **Client-side Storage**: Lưu trữ lịch sử trò chuyện và trạng thái trong localStorage
 
-### Sơ đồ trạng thái
-
-```
-GREETING → COLLECTING_ISSUE → INITIAL_SCREENING → DETAILED_ASSESSMENT → SUMMARY → RESOURCES → CLOSING
-                                      ↓                    ↓
-                                      ↓             SUICIDE_ASSESSMENT
-                                      ↓
-                               ADDITIONAL_ASSESSMENT
-```
-
 ## Cài đặt
 
 ### Yêu cầu
