@@ -1,10 +1,10 @@
 /**
- * Chat.js - Xử lý logic giao diện cho ứng dụng chatbot
- * Cập nhật để sử dụng localStorage thay vì session
+ * Chat.js - Xử lý logic giao diện cho ứng dụng chatbot kết hợp chat tự nhiên và poll
+ * Phiên bản cải tiến với giao diện poll và dashboard tiến trình
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Các element
+    // Các element UI chính
     const chatForm = document.getElementById('chat-form');
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
@@ -16,6 +16,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeInfoButton = document.getElementById('close-info');
     const infoSidebar = document.getElementById('info-sidebar');
     const currentAssessment = document.getElementById('current-assessment');
+    const pollContainer = document.getElementById('poll-container');
+    const pollQuestion = document.getElementById('poll-question');
+    const pollOptions = document.getElementById('poll-options');
+    const pollProgress = document.getElementById('poll-progress');
+    const pollDetailBtn = document.getElementById('poll-detail-button');
+    const pollDetailInput = document.getElementById('poll-detail-input');
+    const pollSubmitBtn = document.getElementById('poll-submit-button');
+    
+    // Các element dashboard tiến trình
+    const progressDashboard = document.querySelector('.progress-dashboard');
+    const progressToggleBtn = document.getElementById('toggle-progress');
+    const roadmapFill = document.getElementById('roadmap-fill');
+    const percentageIndicator = document.getElementById('percentage-indicator');
+    const percentageText = document.getElementById('percentage-text');
+    const assessmentPhase = document.getElementById('assessment-phase');
+    const assessmentDetail = document.getElementById('assessment-detail');
+    const questionProgress = document.getElementById('question-progress');
+    const progressValueBar = document.getElementById('progress-value');
+    const detailInfo = document.getElementById('detail-info');
+    const detailTitle = document.getElementById('detail-title');
+    const detailIcon = document.getElementById('detail-icon');
+    const checkpointItems = document.querySelectorAll('.checkpoint-item');
     
     // Templates
     const userMessageTemplate = document.getElementById('user-message-template');
@@ -25,78 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Biến trạng thái
     let isLoading = false;
     let useAI = true;
-    
-    // Cấu hình tiến trình cho mỗi state
-    const progressConfig = {
-        'greeting': {
-            percentage: 0,
-            label: 'Chào hỏi',
-            includeInFlow: false
-        },
-        'collecting_issue': {
-            percentage: 5,
-            label: 'Thu thập thông tin',
-            includeInFlow: true
-        },
-        'initial_screening': {
-            percentage: 20,
-            label: 'Sàng lọc ban đầu',
-            includeInFlow: true,
-            questionBased: true,
-            totalQuestions: 10 // Số câu hỏi trong initial_screening
-        },
-        'detailed_assessment': {
-            percentage: 50,
-            label: 'Đánh giá chi tiết',
-            includeInFlow: true,
-            questionBased: true,
-            assessmentMap: {
-                'phq9': 9, // PHQ-9 có 9 câu hỏi + 1 câu phụ
-                'gad7': 7, // GAD-7 có 7 câu hỏi + 1 câu phụ
-                'dass21_stress': 7 // DASS-21 phần stress có 7 câu
-            }
-        },
-        'additional_assessment': {
-            percentage: 70,
-            label: 'Đánh giá bổ sung',
-            includeInFlow: true,
-            questionBased: true
-        },
-        'suicide_assessment': {
-            percentage: 85,
-            label: 'Đánh giá nguy cơ',
-            includeInFlow: true,
-            questionBased: true,
-            totalQuestions: 3 // Số câu hỏi trong suicide_assessment
-        },
-        'summary': {
-            percentage: 90,
-            label: 'Tóm tắt kết quả',
-            includeInFlow: true
-        },
-        'resources': {
-            percentage: 95,
-            label: 'Tài nguyên hỗ trợ',
-            includeInFlow: true
-        },
-        'disorder_info': {
-            percentage: 98,
-            label: 'Thông tin chi tiết',
-            includeInFlow: true
-        },
-        'closing': {
-            percentage: 100,
-            label: 'Kết thúc',
-            includeInFlow: true
-        }
-    };
-
-    // Biến toàn cục để theo dõi tiến trình
-    let currentProgress = {
-        state: 'greeting',
-        questionIndex: 0,
-        totalQuestions: 0
-    };
+    let interfaceMode = 'chat';  // 'chat' hoặc 'poll'
+    let currentPollOptions = [];
+    let isDashboardExpanded = false;
     
     // Hàm xử lý localStorage
     function saveMessagesToLocalStorage(messages) {
@@ -159,6 +112,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Lưu trạng thái chat
                     if (data.chatState) {
                         saveChatStateToLocalStorage(data.chatState);
+                        
+                        // Cập nhật chế độ giao diện
+                        updateInterfaceMode(data.chatState.interfaceMode || 'chat');
                     }
                     
                     // Cập nhật hiển thị assessment
@@ -168,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Cập nhật thanh tiến trình
                     if (data.chatState) {
-                        updateProgressBar(data.chatState);
+                        updateProgressDashboard(data.chatState);
                     }
                 }
             })
@@ -185,8 +141,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 addMessageToUI(defaultMessage.content, 'bot', defaultMessage.id, defaultMessage.timestamp);
             });
         } else {
-            // Nếu đã tải lịch sử, cập nhật thanh tiến trình với state hiện tại
-            updateProgressBar(loadChatStateFromLocalStorage());
+            // Nếu đã tải lịch sử, cập nhật thanh tiến trình và chế độ giao diện với state hiện tại
+            const savedState = loadChatStateFromLocalStorage();
+            if (savedState) {
+                updateProgressDashboard(savedState);
+                updateInterfaceMode(savedState.interfaceMode || 'chat');
+            }
         }
     }
     
@@ -197,10 +157,281 @@ document.addEventListener('DOMContentLoaded', function() {
     userInput.addEventListener('input', handleInputChange);
     userInput.addEventListener('keydown', handleKeyDown);
     chatForm.addEventListener('submit', handleSubmit);
-    aiModeToggle.addEventListener('change', toggleAIMode);
     restartButton.addEventListener('click', restartChat);
     toggleInfoButton.addEventListener('click', toggleInfoSidebar);
     closeInfoButton.addEventListener('click', toggleInfoSidebar);
+    
+    // Xử lý sự kiện cho dashboard tiến trình
+    if (progressToggleBtn) {
+        progressToggleBtn.addEventListener('click', toggleProgressDashboard);
+    }
+    
+    // Sự kiện cho giao diện poll nếu có
+    if (pollDetailBtn) {
+        pollDetailBtn.addEventListener('click', togglePollDetailInput);
+    }
+    if (pollSubmitBtn) {
+        pollSubmitBtn.addEventListener('click', submitPollResponse);
+    }
+    
+    /**
+     * Cập nhật chế độ giao diện (chat/poll)
+     */
+    function updateInterfaceMode(mode) {
+        interfaceMode = mode;
+        
+        // Cập nhật hiển thị UI
+        if (mode === 'poll') {
+            // Hiển thị giao diện poll, ẩn chat input
+            if (pollContainer) pollContainer.classList.remove('hidden');
+            if (chatForm) chatForm.classList.add('hidden');
+        } else {
+            // Hiển thị giao diện chat, ẩn poll
+            if (pollContainer) pollContainer.classList.add('hidden');
+            if (chatForm) chatForm.classList.remove('hidden');
+        }
+    }
+    
+    /**
+     * Cập nhật nội dung poll
+     */
+    function updatePollContent(question, options, progress) {
+        if (!pollContainer || !pollQuestion || !pollOptions) return;
+        
+        // Lưu tùy chọn hiện tại
+        currentPollOptions = options || [];
+        
+        // Cập nhật nội dung câu hỏi
+        pollQuestion.textContent = question || '';
+        
+        // Xóa các tùy chọn cũ
+        pollOptions.innerHTML = '';
+        
+        // Thêm các tùy chọn mới
+        if (options && options.length > 0) {
+            options.forEach((option, index) => {
+                const optionBtn = document.createElement('button');
+                optionBtn.className = 'poll-option-button';
+                optionBtn.textContent = option;
+                optionBtn.setAttribute('data-index', index);
+                optionBtn.addEventListener('click', function() {
+                    selectPollOption(index);
+                });
+                pollOptions.appendChild(optionBtn);
+            });
+        }
+        
+        // Cập nhật thanh tiến trình nếu có
+        if (pollProgress && progress) {
+            const { current, total } = progress;
+            pollProgress.textContent = `Câu hỏi ${current}/${total}`;
+            
+            // Cập nhật thanh tiến trình nếu sử dụng
+            const progressBar = document.getElementById('poll-progress-bar');
+            if (progressBar) {
+                const percentage = (current / total) * 100;
+                progressBar.style.width = `${percentage}%`;
+            }
+        }
+    }
+    
+    /**
+     * Xử lý khi người dùng chọn tùy chọn trong poll
+     */
+    function selectPollOption(index) {
+        // Loại bỏ lớp active từ tất cả các nút
+        const optionButtons = pollOptions.querySelectorAll('.poll-option-button');
+        optionButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Thêm lớp active cho nút được chọn
+        const selectedButton = pollOptions.querySelector(`[data-index="${index}"]`);
+        if (selectedButton) {
+            selectedButton.classList.add('active');
+        }
+        
+        // Hiển thị nút submit
+        if (pollSubmitBtn) {
+            pollSubmitBtn.classList.remove('hidden');
+        }
+    }
+    
+    /**
+     * Hiện/ẩn input chi tiết trong poll
+     */
+    function togglePollDetailInput() {
+        if (!pollDetailInput) return;
+        
+        if (pollDetailInput.classList.contains('hidden')) {
+            pollDetailInput.classList.remove('hidden');
+            pollDetailBtn.textContent = 'Ẩn chi tiết';
+        } else {
+            pollDetailInput.classList.add('hidden');
+            pollDetailBtn.textContent = 'Thêm chi tiết';
+        }
+    }
+    
+    /**
+     * Gửi phản hồi từ poll
+     */
+    function submitPollResponse() {
+        // Lấy index của tùy chọn được chọn
+        const selectedOption = pollOptions.querySelector('.poll-option-button.active');
+        if (!selectedOption) {
+            alert('Vui lòng chọn một tùy chọn');
+            return;
+        }
+        
+        const optionIndex = selectedOption.getAttribute('data-index');
+        let response = optionIndex;
+        
+        // Thêm chi tiết nếu có
+        if (pollDetailInput && !pollDetailInput.classList.contains('hidden') && pollDetailInput.value.trim()) {
+            response += ` - ${pollDetailInput.value.trim()}`;
+        }
+        
+        // Hiển thị tin nhắn người dùng
+        const selectedText = currentPollOptions[optionIndex];
+        const displayMessage = selectedText + (pollDetailInput && pollDetailInput.value.trim() ? ` (${pollDetailInput.value.trim()})` : '');
+        
+        // Hiển thị tin nhắn người dùng
+        const messageId = 'msg-' + Date.now();
+        const timestamp = getCurrentTime();
+        
+        // Thêm tin nhắn vào UI
+        addMessageToUI(displayMessage, 'user', messageId, timestamp);
+        
+        // Thêm tin nhắn vào localStorage
+        const messages = loadMessagesFromLocalStorage();
+        messages.push({
+            role: 'user',
+            content: displayMessage,
+            id: messageId,
+            timestamp: timestamp
+        });
+        saveMessagesToLocalStorage(messages);
+        
+        // Reset poll UI
+        pollOptions.querySelectorAll('.poll-option-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        if (pollDetailInput) {
+            pollDetailInput.value = '';
+            pollDetailInput.classList.add('hidden');
+        }
+        if (pollDetailBtn) {
+            pollDetailBtn.textContent = 'Thêm chi tiết';
+        }
+        if (pollSubmitBtn) {
+            pollSubmitBtn.classList.add('hidden');
+        }
+        
+        // Hiển thị hiệu ứng đang nhập
+        showTypingIndicator();
+        
+        // Gửi phản hồi poll đến server
+        sendPollResponseToServer(response);
+    }
+    
+    /**
+     * Gửi phản hồi poll đến server
+     */
+    function sendPollResponseToServer(response) {
+        isLoading = true;
+        updateChatModeIndicator();
+        
+        // Lấy lịch sử chat từ localStorage
+        const messages = loadMessagesFromLocalStorage();
+        
+        // Gửi nhiều hơn nhưng không gửi tất cả để tránh quá tải
+        const maxMessages = 40; // Tăng từ 15 lên 40
+        const recentMessages = messages.length <= maxMessages ? 
+                            messages : 
+                            messages.slice(-maxMessages);
+        
+        // Lấy trạng thái chat từ localStorage
+        const chatState = loadChatStateFromLocalStorage();
+        
+        fetch('/api/send_message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: response,
+                useAI: useAI,
+                messageHistory: recentMessages,
+                chatState: chatState
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Server responded with status ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Ẩn hiệu ứng đang nhập
+            hideTypingIndicator();
+            
+            // Xử lý phản hồi của server
+            if (data.error) {
+                showErrorMessage(data.error);
+            } else {
+                // Thêm tin nhắn bot vào UI
+                addMessageToUI(data.text, 'bot', data.id, data.timestamp);
+                
+                // Thêm tin nhắn bot vào localStorage
+                const messages = loadMessagesFromLocalStorage();
+                messages.push({
+                    role: 'assistant',
+                    content: data.text,
+                    id: data.id,
+                    timestamp: data.timestamp
+                });
+                saveMessagesToLocalStorage(messages);
+                
+                // Lưu trạng thái chat mới
+                if (data.chatState) {
+                    saveChatStateToLocalStorage(data.chatState);
+                }
+                
+                // Cập nhật trạng thái đánh giá hiện tại
+                if (data.state) {
+                    updateCurrentAssessment(data.state);
+                }
+                
+                // Cập nhật thanh tiến trình
+                if (data.chatState) {
+                    updateProgressDashboard(data.chatState);
+                }
+                
+                // Cập nhật chế độ giao diện
+                if (data.chatState && data.chatState.interfaceMode) {
+                    updateInterfaceMode(data.chatState.interfaceMode);
+                }
+                
+                // Cập nhật nội dung poll nếu cần
+                if (data.pollOptions && interfaceMode === 'poll') {
+                    updatePollContent(
+                        data.botMessage, 
+                        data.pollOptions, 
+                        {
+                            current: (data.chatState?.currentQuestionIndex || 0) + 1,
+                            total: data.chatState?.totalQuestions || 10
+                        }
+                    );
+                }
+            }
+        })
+        .catch(error => {
+            hideTypingIndicator();
+            showErrorMessage(error.message);
+        })
+        .finally(() => {
+            isLoading = false;
+            updateChatModeIndicator();
+        });
+    }
     
     /**
      * Xử lý khi người dùng nhập liệu
@@ -274,8 +505,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Lấy lịch sử chat từ localStorage
         const messages = loadMessagesFromLocalStorage();
-        // Chỉ lấy 15 tin nhắn gần nhất để tạo ngữ cảnh
-        const recentMessages = messages.slice(-15);
+        
+        // Gửi nhiều hơn nhưng không gửi tất cả để tránh quá tải
+        const maxMessages = 40; // Tăng từ 15 lên 40
+        const recentMessages = messages.length <= maxMessages ? 
+                              messages : 
+                              messages.slice(-maxMessages);
         
         // Lấy trạng thái chat từ localStorage
         const chatState = loadChatStateFromLocalStorage();
@@ -324,14 +559,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     saveChatStateToLocalStorage(data.chatState);
                 }
                 
-                // Cập nhật trạng thái đánh giá hiện tại nếu có
+                // Cập nhật trạng thái đánh giá hiện tại
                 if (data.state) {
                     updateCurrentAssessment(data.state);
                 }
                 
                 // Cập nhật thanh tiến trình
                 if (data.chatState) {
-                    updateProgressBar(data.chatState);
+                    updateProgressDashboard(data.chatState);
+                }
+                
+                // Cập nhật chế độ giao diện
+                if (data.chatState && data.chatState.interfaceMode) {
+                    updateInterfaceMode(data.chatState.interfaceMode);
+                }
+                
+                // Cập nhật nội dung poll nếu cần
+                if (data.pollOptions && interfaceMode === 'poll') {
+                    updatePollContent(
+                        data.botMessage, 
+                        data.pollOptions, 
+                        {
+                            current: (data.chatState?.currentQuestionIndex || 0) + 1,
+                            total: data.chatState?.totalQuestions || 10
+                        }
+                    );
                 }
             }
         })
@@ -343,28 +595,6 @@ document.addEventListener('DOMContentLoaded', function() {
             isLoading = false;
             updateChatModeIndicator();
         });
-    }
-    
-    /**
-     * Chuyển đổi chế độ AI/Logic
-     */
-    function toggleAIMode() {
-        useAI = aiModeToggle.checked;
-        
-        fetch('/api/toggle_ai', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                useAI: useAI
-            })
-        })
-        .catch(error => {
-            console.error('Error toggling AI mode:', error);
-        });
-        
-        updateChatModeIndicator();
     }
     
     /**
@@ -425,12 +655,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Reset current assessment
-                currentAssessment.textContent = 'Trò chuyện';
+                updateCurrentAssessment('greeting');
                 
                 // Cập nhật thanh tiến trình cho state mới
                 if (data.chatState) {
-                    updateProgressBar(data.chatState);
+                    updateProgressDashboard(data.chatState);
                 }
+                
+                // Cập nhật chế độ giao diện
+                updateInterfaceMode('chat');
             } else {
                 alert('Không thể khởi động lại cuộc trò chuyện. Vui lòng thử lại sau.');
             }
@@ -449,6 +682,266 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function toggleInfoSidebar() {
         infoSidebar.classList.toggle('hidden');
+    }
+
+    /**
+     * Xử lý hiện/ẩn dashboard tiến trình
+     */
+    function toggleProgressDashboard() {
+        isDashboardExpanded = !isDashboardExpanded;
+        
+        if (progressDashboard) {
+            progressDashboard.classList.toggle('expanded', isDashboardExpanded);
+        }
+        
+        if (progressToggleBtn) {
+            progressToggleBtn.classList.toggle('expanded', isDashboardExpanded);
+        }
+    }
+    
+    /**
+     * Cập nhật dashboard tiến trình
+     */
+    function updateProgressDashboard(chatState) {
+        if (!progressDashboard || !roadmapFill || !percentageIndicator || !percentageText) return;
+        
+        // Xác định trạng thái hiện tại
+        const state = chatState.state || 'greeting';
+        const assessmentId = chatState.currentAssessment;
+        const questionIndex = chatState.currentQuestionIndex || 0;
+        const totalQuestions = chatState.totalQuestions || 0;
+        
+        // Cập nhật tiêu đề và mô tả
+        updateAssessmentInfo(state, assessmentId, chatState);
+        
+        // Cập nhật tiến trình câu hỏi
+        updateQuestionProgress(questionIndex, totalQuestions);
+        
+        // Cập nhật tiến trình tổng thể
+        const overallProgress = calculateOverallProgress(state, questionIndex, totalQuestions);
+        updateOverallProgressIndicator(overallProgress);
+        
+        // Cập nhật roadmap
+        updateRoadmapPhase(state);
+    }
+
+    /**
+     * Cập nhật thông tin đánh giá hiện tại
+     */
+    function updateAssessmentInfo(state, assessmentId, chatState) {
+        if (!assessmentPhase || !assessmentDetail || !detailTitle || !detailIcon || !detailInfo) return;
+        
+        // Thông tin mặc định
+        let title = "Bắt đầu trò chuyện";
+        let detail = "Chúng tôi sẽ hỗ trợ bạn";
+        let detailText = "Hệ thống đang xử lý thông tin của bạn...";
+        
+        // Lấy thông tin câu hỏi từ chatState
+        const currentQuestionIndex = chatState.currentQuestionIndex || 0;
+        const totalQuestions = chatState.totalQuestions || 0;
+        
+        // Cập nhật thông tin dựa trên trạng thái
+        switch (state) {
+            case 'greeting':
+                title = "Bắt đầu trò chuyện";
+                detail = "Chào mừng bạn đến với Trợ lý Sức khỏe Tâm thần";
+                detailText = "Hãy chia sẻ lý do bạn tìm đến dịch vụ này.";
+                break;
+                
+            case 'collecting_issue':
+                title = "Thu thập thông tin";
+                detail = "Chia sẻ vấn đề của bạn";
+                detailText = "Hãy chia sẻ những gì bạn đang trải qua để chúng tôi có thể hiểu rõ hơn.";
+                break;
+                
+            case 'natural_conversation':
+                title = "Trò chuyện tự nhiên";
+                detail = "Đánh giá sơ bộ";
+                detailText = "Chúng tôi đang tìm hiểu về trải nghiệm của bạn thông qua cuộc trò chuyện tự nhiên.";
+                break;
+                
+            case 'poll_interaction':
+            case 'initial_screening':
+            case 'detailed_assessment':
+            case 'additional_assessment':
+                if (assessmentId && chatState.assessmentDetails) {
+                    title = chatState.assessmentDetails.name || "Đánh giá";
+                    detail = chatState.assessmentDetails.description || "Trả lời các câu hỏi đánh giá";
+                }
+                detailText = `Đang thực hiện đánh giá ${currentQuestionIndex + 1}/${totalQuestions || 10} câu hỏi.`;
+                break;
+                
+            case 'suicide_assessment':
+                title = "Đánh giá nguy cơ";
+                detail = "Câu hỏi quan trọng";
+                detailText = "Chúng tôi đang đánh giá mức độ nghiêm trọng để có thể hỗ trợ bạn tốt nhất.";
+                break;
+                
+            case 'summary':
+                title = "Tổng kết kết quả";
+                detail = "Tóm tắt đánh giá";
+                detailText = "Chúng tôi đang tổng hợp kết quả từ các đánh giá đã thực hiện.";
+                break;
+                
+            case 'resources':
+                title = "Tài nguyên hỗ trợ";
+                detail = "Các nguồn tham khảo";
+                detailText = "Chúng tôi đang cung cấp các tài nguyên phù hợp với nhu cầu của bạn.";
+                break;
+                
+            case 'disorder_info':
+                title = "Thông tin chi tiết";
+                detail = "Hiểu rõ hơn về tình trạng";
+                detailText = "Chúng tôi đang cung cấp thông tin chi tiết về các triệu chứng bạn đang trải qua.";
+                break;
+                
+            case 'closing':
+                title = "Kết thúc cuộc trò chuyện";
+                detail = "Cảm ơn bạn đã trò chuyện";
+                detailText = "Cảm ơn bạn đã sử dụng Trợ lý Sức khỏe Tâm thần. Bạn có thể quay lại bất cứ lúc nào.";
+                break;
+                
+            default:
+                title = "Đang xử lý";
+                detail = "Xin vui lòng đợi";
+                detailText = "Hệ thống đang xử lý thông tin...";
+        }
+        
+        // Cập nhật UI
+        assessmentPhase.textContent = title;
+        assessmentDetail.textContent = detail;
+        detailTitle.textContent = title;
+        detailInfo.textContent = detailText;
+    }
+
+    /**
+     * Cập nhật tiến trình câu hỏi
+     */
+    function updateQuestionProgress(currentIndex, totalQuestions) {
+        if (!questionProgress || !progressValueBar) return;
+        
+        // Nếu không có tổng số câu hỏi, không hiển thị
+        if (!totalQuestions) {
+            questionProgress.textContent = "Đang trò chuyện";
+            progressValueBar.style.width = "0%";
+            return;
+        }
+        
+        // Cập nhật text và thanh tiến trình
+        questionProgress.textContent = `${currentIndex + 1}/${totalQuestions} câu hỏi`;
+        
+        const progressPercent = ((currentIndex + 1) / totalQuestions) * 100;
+        progressValueBar.style.width = `${progressPercent}%`;
+    }
+
+    /**
+     * Tính toán tiến trình tổng thể
+     */
+    function calculateOverallProgress(state, currentQuestionIndex, totalQuestions) {
+        // Xác định trọng số của mỗi giai đoạn
+        const phaseWeights = {
+            'greeting': 0,
+            'collecting_issue': 5,
+            'natural_conversation': 15,
+            'poll_interaction': 40,
+            'initial_screening': 40,
+            'detailed_assessment': 50,
+            'additional_assessment': 60,
+            'suicide_assessment': 70,
+            'summary': 80,
+            'resources': 90,
+            'disorder_info': 95,
+            'closing': 100
+        };
+        
+        // Lấy tiến trình cơ bản dựa trên trạng thái
+        let baseProgress = phaseWeights[state] || 0;
+        
+        // Nếu đang trong giai đoạn câu hỏi, thêm tiến trình dựa trên chỉ số câu hỏi
+        if (['poll_interaction', 'initial_screening', 'detailed_assessment', 'additional_assessment', 'suicide_assessment'].includes(state)) {
+            if (totalQuestions > 0) {
+                // Tính tiến trình trong giai đoạn hiện tại
+                const phaseProgress = phaseWeights[state];
+                const nextPhaseProgress = state === 'suicide_assessment' ? 80 : 70;
+                const progressRange = nextPhaseProgress - phaseProgress;
+                
+                // Thêm tiến trình dựa trên số câu hỏi đã trả lời
+                const questionProgress = (currentQuestionIndex / totalQuestions) * progressRange;
+                baseProgress += questionProgress;
+            }
+        }
+        
+        return Math.min(Math.round(baseProgress), 100);
+    }
+
+    /**
+     * Cập nhật hiển thị tiến trình tổng thể
+     */
+    function updateOverallProgressIndicator(progressPercent) {
+        if (!percentageIndicator || !percentageText) return;
+        
+        // Cập nhật text và hiệu ứng
+        percentageText.textContent = `${progressPercent}%`;
+        
+        // Cập nhật đường tròn tiến trình
+        const circumference = 2 * Math.PI * 15.9155; // Dựa trên giá trị trong SVG
+        const dashOffset = circumference - (progressPercent / 100) * circumference;
+        percentageIndicator.style.strokeDasharray = `${progressPercent}, 100`;
+    }
+
+    /**
+     * Cập nhật giai đoạn trong roadmap
+     */
+    function updateRoadmapPhase(state) {
+        if (!checkpointItems || !roadmapFill) return;
+        
+        // Mapping các trạng thái vào các giai đoạn trong roadmap
+        const phaseMapping = {
+            'greeting': 'intro',
+            'collecting_issue': 'intro',
+            'natural_conversation': 'screening',
+            'poll_interaction': 'detailed',
+            'initial_screening': 'screening',
+            'detailed_assessment': 'detailed',
+            'additional_assessment': 'detailed',
+            'suicide_assessment': 'detailed',
+            'summary': 'review',
+            'resources': 'support',
+            'disorder_info': 'support',
+            'closing': 'support'
+        };
+        
+        // Xác định phase hiện tại
+        const currentPhase = phaseMapping[state] || 'intro';
+        
+        // Mapping phases to percentage for roadmap-fill
+        const phaseProgressMapping = {
+            'intro': 0,
+            'screening': 25,
+            'detailed': 50,
+            'review': 75,
+            'support': 100
+        };
+        
+        // Cập nhật roadmap fill
+        const fillPercent = phaseProgressMapping[currentPhase] || 0;
+        roadmapFill.style.width = `${fillPercent}%`;
+        
+        // Cập nhật trạng thái của các checkpoint
+        checkpointItems.forEach(item => {
+            const phase = item.getAttribute('data-phase');
+            if (!phase) return;
+            
+            // Xóa tất cả các trạng thái hiện tại
+            item.classList.remove('active', 'completed');
+            
+            // Xác định trạng thái mới
+            if (phase === currentPhase) {
+                item.classList.add('active');
+            } else if (phaseProgressMapping[phase] < phaseProgressMapping[currentPhase]) {
+                item.classList.add('completed');
+            }
+        });
     }
     
     /**
@@ -553,12 +1046,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const errorElement = errorMessageTemplate.content.cloneNode(true);
         errorElement.querySelector('.error-description').textContent = errorMessage;
         
-        const toggleButton = errorElement.querySelector('#toggle-ai-mode');
-        toggleButton.textContent = useAI ? "Chuyển sang chế độ không AI" : "Chuyển sang chế độ AI";
-        toggleButton.addEventListener('click', function() {
-            aiModeToggle.checked = !aiModeToggle.checked;
-            toggleAIMode();
-            this.closest('.error-message').remove();
+        const retryButton = errorElement.querySelector('#retry-button');
+        retryButton.textContent = "Chuyển sang phiên bản Poll";
+        retryButton.addEventListener('click', function() {
+            // Chuyển hướng sang phiên bản poll
+            window.location.href = '/logic';
         });
         
         const errorDiv = errorElement.querySelector('.error-message');
@@ -578,6 +1070,10 @@ document.addEventListener('DOMContentLoaded', function() {
             assessmentName = 'Sàng lọc ban đầu';
         } else if (state === 'detailed_assessment' || state === 'additional_assessment') {
             assessmentName = 'Đánh giá chi tiết';
+        } else if (state === 'poll_interaction') {
+            assessmentName = 'Đánh giá chuyên sâu';
+        } else if (state === 'natural_conversation') {
+            assessmentName = 'Trò chuyện đánh giá';
         } else if (state === 'suicide_assessment') {
             assessmentName = 'Đánh giá nguy cơ';
         } else if (state === 'summary') {
@@ -593,8 +1089,6 @@ document.addEventListener('DOMContentLoaded', function() {
      * Cuộn xuống tin nhắn mới nhất
      */
     function scrollToBottom() {
-        const chatMessages = document.getElementById('chat-messages');
-        // Sử dụng smooth scrolling để tạo hiệu ứng mượt mà
         chatMessages.scrollTo({
             top: chatMessages.scrollHeight,
             behavior: 'smooth'
@@ -609,651 +1103,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     }
 
-    /**
-     * Cập nhật thanh tiến trình
-     */
-    function updateProgressBar(chatState) {
-        const progressFill = document.getElementById('roadmap-fill'); // Thay đổi ID thành 'roadmap-fill'
+    function switchToPollMode() {
+        chatMessages.classList.add('hidden');
+        pollContainer.classList.remove('hidden');
+        chatInputContainer.classList.add('hidden');
+    }
     
-        // Kiểm tra tất cả các phần tử DOM trước khi sử dụng
-        const assessmentPhase = document.getElementById('assessment-phase');
-        const assessmentDetail = document.getElementById('assessment-detail');
-        
-        if (!chatState || !progressFill) return;
-        
-        // Lưu state trước đó để kiểm tra thay đổi
-        const previousState = currentProgress.state;
-        
-        // Cập nhật state hiện tại
-        currentProgress.state = chatState.state || 'greeting';
-        
-        // Reset và cập nhật chỉ số câu hỏi nếu state thay đổi
-        if (previousState !== currentProgress.state) {
-            currentProgress.questionIndex = 0;
-            
-            // Đặt tổng số câu hỏi dựa trên state hiện tại
-            if (progressConfig[currentProgress.state] && progressConfig[currentProgress.state].questionBased) {
-                if (progressConfig[currentProgress.state].assessmentMap && chatState.currentAssessment) {
-                    currentProgress.totalQuestions = progressConfig[currentProgress.state].assessmentMap[chatState.currentAssessment] || 0;
-                } else {
-                    currentProgress.totalQuestions = progressConfig[currentProgress.state].totalQuestions || 0;
-                }
-            } else {
-                currentProgress.totalQuestions = 0;
-            }
-        } else {
-            // Cập nhật chỉ số câu hỏi nếu cùng state
-            currentProgress.questionIndex = chatState.currentQuestionIndex || 0;
-        }
-        
-        // Tính toán phần trăm tiến trình
-        let percentage = progressConfig[currentProgress.state]?.percentage || 0;
-        
-        // Điều chỉnh phần trăm dựa trên tiến trình câu hỏi nếu là state dựa trên câu hỏi
-        if (progressConfig[currentProgress.state]?.questionBased && currentProgress.totalQuestions > 0) {
-            const basePercentage = progressConfig[currentProgress.state].percentage;
-            const nextStatePercentage = getNextStatePercentage(currentProgress.state);
-            const progressRange = nextStatePercentage - basePercentage;
-            
-            // Tính phần trăm dựa trên số câu hỏi đã hoàn thành
-            const questionProgress = currentProgress.questionIndex / currentProgress.totalQuestions;
-            percentage = basePercentage + (progressRange * questionProgress);
-        }
-        
-        // Thêm hiệu ứng khi chuyển đổi state
-        if (previousState !== currentProgress.state) {
-            progressFill.classList.add('transitioning');
-            setTimeout(() => {
-                progressFill.classList.remove('transitioning');
-            }, 1000);
-        }
-        
-        // Cập nhật UI
-        progressFill.style.width = `${percentage}%`;
-        if (assessmentPhase) {
-            assessmentPhase.textContent = progressConfig[currentProgress.state]?.label || 'Trò chuyện';
-        }
-        
-        // Hiển thị thông tin câu hỏi nếu là state dựa trên câu hỏi (thêm kiểm tra null)
-        const questionProgress = document.getElementById('question-progress');
-        const progressValue = document.getElementById('progress-value');
-        
-        if (progressConfig[currentProgress.state]?.questionBased && currentProgress.totalQuestions > 0) {
-            if (questionProgress) {
-                questionProgress.textContent = `${currentProgress.questionIndex + 1}/${currentProgress.totalQuestions} câu hỏi`;
-            }
-            
-            if (progressValue) {
-                progressValue.style.width = `${(currentProgress.questionIndex / currentProgress.totalQuestions) * 100}%`;
-            }
-        }
+    function switchToChatMode() {
+        chatMessages.classList.remove('hidden');
+        pollContainer.classList.add('hidden');
+        chatInputContainer.classList.remove('hidden');
     }
-
-    /**
-     * Hàm lấy phần trăm của state tiếp theo
-     */
-    function getNextStatePercentage(currentState) {
-        const stateKeys = Object.keys(progressConfig);
-        const currentIndex = stateKeys.indexOf(currentState);
-        
-        if (currentIndex !== -1 && currentIndex < stateKeys.length - 1) {
-            return progressConfig[stateKeys[currentIndex + 1]].percentage;
-        }
-        
-        return 100; // Nếu là state cuối cùng
-    }
-
-    // Thêm các hàm này vào global window object
-    window.loadChatStateFromLocalStorage = loadChatStateFromLocalStorage;
-    window.checkForWelcomeMessage = checkForWelcomeMessage;
-    window.restartChat = restartChat;
-    window.sendMessageToServer = sendMessageToServer;
 });
-
-/**
- * Quản lý tiến trình đánh giá nâng cao
- */
-const ProgressManager = (function() {
-    // Mapping của trạng thái đến các pha và thông tin chi tiết
-    const stateMapping = {
-        // Pha giới thiệu
-        'greeting': {
-            phase: 'intro',
-            percentage: 10,
-            title: 'Bắt đầu trò chuyện',
-            subtitle: 'Chia sẻ cảm xúc của bạn với tôi',
-            detailTitle: 'Giới thiệu',
-            detailInfo: 'Chia sẻ với chúng tôi về cảm xúc và trải nghiệm của bạn gần đây.',
-            icon: 'chat'
-        },
-        'collecting_issue': {
-            phase: 'intro',
-            percentage: 30,
-            title: 'Thu thập thông tin',
-            subtitle: 'Hiểu rõ hơn về trải nghiệm của bạn',
-            detailTitle: 'Thu thập thông tin',
-            detailInfo: 'Chúng tôi đang tìm hiểu về trạng thái hiện tại của bạn để chuẩn bị đánh giá.',
-            icon: 'info'
-        },
-        
-        // Pha sàng lọc
-        'initial_screening': {
-            phase: 'screening',
-            percentage: 50,
-            title: 'Sàng lọc sơ bộ',
-            subtitle: 'Đánh giá nhanh các triệu chứng phổ biến',
-            detailTitle: 'Sàng lọc ban đầu',
-            detailInfo: 'Bước này giúp xác định các lĩnh vực cần đánh giá chi tiết hơn.',
-            icon: 'search',
-            questionBased: true
-        },
-        
-        // Pha đánh giá chi tiết
-        'detailed_assessment': {
-            phase: 'detailed',
-            percentage: 70,
-            title: 'Đánh giá chuyên sâu',
-            subtitle: 'Sử dụng bộ công cụ chuẩn',
-            detailTitle: 'Đánh giá chi tiết',
-            detailInfo: 'Sử dụng bộ câu hỏi được kiểm chứng để đánh giá chính xác hơn.',
-            icon: 'clipboard',
-            questionBased: true,
-            assessmentMapping: {
-                'phq9': { name: 'PHQ-9 (Trầm cảm)', icon: 'mood' },
-                'gad7': { name: 'GAD-7 (Lo âu)', icon: 'heart' },
-                'dass21_stress': { name: 'DASS-21 (Căng thẳng)', icon: 'alert' }
-            }
-        },
-        'additional_assessment': {
-            phase: 'detailed',
-            percentage: 80,
-            title: 'Đánh giá bổ sung',
-            subtitle: 'Thu thập thông tin chi tiết hơn',
-            detailTitle: 'Đánh giá bổ sung',
-            detailInfo: 'Đánh giá sâu hơn về các triệu chứng được phát hiện.',
-            icon: 'clipboard',
-            questionBased: true
-        },
-        'suicide_assessment': {
-            phase: 'detailed',
-            percentage: 85,
-            title: 'Đánh giá nguy cơ',
-            subtitle: 'Đánh giá mức độ khẩn cấp',
-            detailTitle: 'Đánh giá nguy cơ',
-            detailInfo: 'Đánh giá mức độ ưu tiên và tính khẩn cấp của tình huống.',
-            icon: 'alert',
-            questionBased: true,
-            priority: true
-        },
-        
-        // Pha tổng kết
-        'summary': {
-            phase: 'review',
-            percentage: 90,
-            title: 'Tổng kết đánh giá',
-            subtitle: 'Xem xét kết quả và đề xuất',
-            detailTitle: 'Tổng kết kết quả',
-            detailInfo: 'Chúng tôi đang tổng hợp kết quả và chuẩn bị các đề xuất phù hợp.',
-            icon: 'results'
-        },
-        
-        // Pha hỗ trợ
-        'resources': {
-            phase: 'support',
-            percentage: 95,
-            title: 'Tài nguyên hỗ trợ',
-            subtitle: 'Cung cấp công cụ và thông tin',
-            detailTitle: 'Tài nguyên hỗ trợ',
-            detailInfo: 'Khám phá các tài nguyên và công cụ được thiết kế để hỗ trợ bạn.',
-            icon: 'resources'
-        },
-        'disorder_info': {
-            phase: 'support',
-            percentage: 98,
-            title: 'Thông tin chuyên sâu',
-            subtitle: 'Tìm hiểu thêm về tình trạng',
-            detailTitle: 'Thông tin chi tiết',
-            detailInfo: 'Tìm hiểu thêm về các tình trạng và biện pháp quản lý có thể.',
-            icon: 'info'
-        },
-        'closing': {
-            phase: 'support',
-            percentage: 100,
-            title: 'Hoàn thành đánh giá',
-            subtitle: 'Cảm ơn bạn đã tham gia',
-            detailTitle: 'Kết thúc',
-            detailInfo: 'Cảm ơn bạn đã hoàn thành quy trình đánh giá. Hãy xem xét các tài nguyên và đề xuất của chúng tôi.',
-            icon: 'check'
-        }
-    };
-    
-    // Thứ tự các giai đoạn
-    const phaseOrder = ['intro', 'screening', 'detailed', 'review', 'support'];
-    
-    // Cache các phần tử DOM
-    let elements = {};
-    
-    // Lưu trạng thái hiện tại
-    let currentState = {
-        state: 'greeting',
-        phase: 'intro',
-        questionIndex: 0,
-        totalQuestions: 0,
-        previousPhase: null,
-        assessmentType: null
-    };
-    
-    // Các biểu tượng cho từng loại
-    const icons = {
-        'chat': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
-        'info': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
-        'search': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
-        'clipboard': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>',
-        'alert': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-        'results': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
-        'resources': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>',
-        'check': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
-        'mood': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 15h8"></path><path d="M9 9h.01"></path><path d="M15 9h.01"></path></svg>',
-        'heart': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>'
-    };
-    
-    // Khởi tạo các tham chiếu phần tử DOM
-    function initElements() {
-        elements = {
-            // Vòng phần trăm
-            percentageIndicator: document.getElementById('percentage-indicator'),
-            percentageText: document.getElementById('percentage-text'),
-            
-            // Thông tin trạng thái
-            assessmentPhase: document.getElementById('assessment-phase'),
-            assessmentDetail: document.getElementById('assessment-detail'),
-            
-            // Roadmap
-            roadmapFill: document.getElementById('roadmap-fill'),
-            checkpoints: document.querySelectorAll('.checkpoint-item'),
-            
-            // Chi tiết
-            detailCard: document.getElementById('detail-card'),
-            detailIcon: document.getElementById('detail-icon'),
-            detailTitle: document.getElementById('detail-title'),
-            questionProgress: document.getElementById('question-progress'),
-            progressValue: document.getElementById('progress-value'),
-            detailInfo: document.getElementById('detail-info')
-        };
-    }
-    
-    // Thiết lập các listener sự kiện
-    function setupEventListeners() {
-        // Hiệu ứng hover cho các checkpoint
-        elements.checkpoints.forEach(checkpoint => {
-            checkpoint.addEventListener('mouseenter', function() {
-                if (!this.classList.contains('active') && !this.classList.contains('completed')) {
-                    this.querySelector('.node-indicator').style.backgroundColor = 'rgba(var(--color-highlight), 0.1)';
-                    this.querySelector('.node-icon').style.color = 'rgba(255, 255, 255, 0.8)';
-                }
-            });
-            
-            checkpoint.addEventListener('mouseleave', function() {
-                if (!this.classList.contains('active') && !this.classList.contains('completed')) {
-                    this.querySelector('.node-indicator').style.backgroundColor = 'rgb(43, 43, 43)';
-                    this.querySelector('.node-icon').style.color = 'rgba(255, 255, 255, 0.5)';
-                }
-            });
-        });
-    }
-    
-    // Cập nhật UI dựa trên trạng thái
-    function updateUI(chatState, animate = true) {
-        if (!chatState || !chatState.state) return;
-        
-        // Lưu trạng thái trước để phát hiện thay đổi
-        const previousPhase = currentState.phase;
-        
-        // Cập nhật trạng thái hiện tại
-        const mapping = stateMapping[chatState.state];
-        if (!mapping) return;
-        
-        currentState.state = chatState.state;
-        currentState.phase = mapping.phase;
-        currentState.questionIndex = chatState.currentQuestionIndex || 0;
-        currentState.totalQuestions = chatState.totalQuestions || 0;
-        
-        if (chatState.currentAssessment && 
-            mapping.assessmentMapping && 
-            mapping.assessmentMapping[chatState.currentAssessment]) {
-            currentState.assessmentType = chatState.currentAssessment;
-        }
-        
-        // Cập nhật vòng phần trăm
-        updatePercentageRing(mapping.percentage);
-        
-        // Cập nhật thông tin trạng thái
-        elements.assessmentPhase.textContent = mapping.title;
-        elements.assessmentDetail.textContent = mapping.subtitle;
-        
-        // Cập nhật roadmap
-        updateRoadmap(mapping.phase, animate && previousPhase !== mapping.phase);
-        
-        // Cập nhật thẻ chi tiết
-        updateDetailCard(chatState, mapping, animate);
-    }
-    
-    // Cập nhật vòng phần trăm
-    function updatePercentageRing(percentage) {
-        const circumference = 2 * Math.PI * 15.9155;
-        const dashoffset = ((100 - percentage) / 100) * circumference;
-        
-        // Đặt giá trị phần trăm
-        elements.percentageText.textContent = `${Math.round(percentage)}%`;
-        
-        // Animation mượt cho vòng
-        elements.percentageIndicator.style.transition = 'stroke-dasharray 0.8s ease-in-out';
-        elements.percentageIndicator.setAttribute('stroke-dasharray', `${percentage}, 100`);
-    }
-    
-    // Cập nhật thanh roadmap
-    function updateRoadmap(currentPhase, animate) {
-        const currentIndex = phaseOrder.indexOf(currentPhase);
-        
-        // Đặt chiều rộng cho thanh fill
-        const percentage = (currentIndex / (phaseOrder.length - 1)) * 100;
-        
-        // Animation cho thanh tiến trình
-        if (animate) {
-            elements.roadmapFill.style.transition = 'width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)';
-        } else {
-            elements.roadmapFill.style.transition = 'none';
-        }
-        elements.roadmapFill.style.width = `${percentage}%`;
-        
-        // Cập nhật trạng thái các checkpoint
-        elements.checkpoints.forEach(checkpoint => {
-            const phase = checkpoint.getAttribute('data-phase');
-            const phaseIndex = phaseOrder.indexOf(phase);
-            
-            // Reset classes
-            checkpoint.classList.remove('active', 'completed');
-            
-            // Đánh dấu các bước đã hoàn thành
-            if (phaseIndex < currentIndex) {
-                checkpoint.classList.add('completed');
-            }
-            // Đánh dấu bước hiện tại
-            else if (phaseIndex === currentIndex) {
-                checkpoint.classList.add('active');
-                
-                // Thêm hiệu ứng pulse nếu đang animate
-                if (animate) {
-                    const nodeIndicator = checkpoint.querySelector('.node-indicator');
-                    nodeIndicator.classList.add('pulse-animation');
-                    setTimeout(() => {
-                        nodeIndicator.classList.remove('pulse-animation');
-                    }, 2000);
-                }
-            }
-        });
-    }
-    
-    // Cập nhật thẻ chi tiết
-    function updateDetailCard(chatState, mapping, animate) {
-        // Tạo thông tin chi tiết về giai đoạn hiện tại
-        let detailTitle = mapping.detailTitle;
-        let detailInfo = mapping.detailInfo;
-        let iconType = mapping.icon;
-        
-        // Hiệu chỉnh cho assessment cụ thể
-        if (currentState.assessmentType && 
-            mapping.assessmentMapping && 
-            mapping.assessmentMapping[currentState.assessmentType]) {
-                
-            const assessmentInfo = mapping.assessmentMapping[currentState.assessmentType];
-            detailTitle = assessmentInfo.name;
-            iconType = assessmentInfo.icon || iconType;
-        }
-        
-        // Thêm animation nếu yêu cầu
-        if (animate) {
-            elements.detailCard.classList.add('animate-fade-in');
-            setTimeout(() => {
-                elements.detailCard.classList.remove('animate-fade-in');
-            }, 500);
-        }
-        
-        // Cập nhật biểu tượng
-        elements.detailIcon.innerHTML = icons[iconType] || icons['info'];
-        
-        // Đánh dấu các trạng thái ưu tiên cao
-        if (mapping.priority) {
-            elements.detailCard.style.borderColor = 'rgba(var(--color-highlight-secondary), 0.7)';
-            elements.detailCard.style.boxShadow = '0 0 15px rgba(var(--color-highlight-secondary), 0.3)';
-        } else {
-            elements.detailCard.style.borderColor = 'rgba(var(--color-border), 0.7)';
-            elements.detailCard.style.boxShadow = 'none';
-        }
-        
-        // Cập nhật tiêu đề
-        elements.detailTitle.textContent = detailTitle;
-        
-        // Cập nhật thông tin câu hỏi nếu là trạng thái dựa trên câu hỏi
-        if (mapping.questionBased && currentState.totalQuestions > 0) {
-            // Hiển thị thông tin câu hỏi
-            elements.questionProgress.textContent = `${currentState.questionIndex + 1}/${currentState.totalQuestions} câu hỏi`;
-            elements.questionProgress.parentElement.style.display = 'block';
-            
-            // Tính toán phần trăm hoàn thành
-            const questionProgress = ((currentState.questionIndex + 1) / currentState.totalQuestions) * 100;
-            elements.progressValue.style.width = `${questionProgress}%`;
-        } else {
-            // Ẩn thông tin câu hỏi
-            elements.questionProgress.parentElement.style.display = 'none';
-        }
-        
-        // Cập nhật thông tin chi tiết
-        elements.detailInfo.textContent = detailInfo;
-        
-        // Thêm thông tin đánh giá nếu có
-        if (chatState.scores && Object.keys(chatState.scores).length > 0) {
-            let scoresHtml = '<div class="scores-summary" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(var(--color-border), 0.5);">';
-            scoresHtml += '<p style="font-weight: 500; margin-bottom: 0.5rem;">Kết quả đánh giá:</p>';
-            scoresHtml += '<ul style="list-style: none; padding: 0; margin: 0;">';
-            
-            for (const [assessmentId, score] of Object.entries(chatState.scores)) {
-                let assessmentName = assessmentId;
-                if (assessmentId === 'phq9') assessmentName = 'PHQ-9 (Trầm cảm)';
-                if (assessmentId === 'gad7') assessmentName = 'GAD-7 (Lo âu)';
-                if (assessmentId === 'dass21_stress') assessmentName = 'DASS-21 (Căng thẳng)';
-                
-                let severity = '';
-                if (chatState.severityLevels && chatState.severityLevels[assessmentId]) {
-                    severity = chatState.severityLevels[assessmentId];
-                    
-                    // Chuyển đổi từ tiếng Anh sang tiếng Việt
-                    if (severity === 'minimal') severity = 'Tối thiểu';
-                    else if (severity === 'mild') severity = 'Nhẹ';
-                    else if (severity === 'moderate') severity = 'Trung bình';
-                    else if (severity === 'moderatelySevere') severity = 'Trung bình nặng';
-                    else if (severity === 'severe') severity = 'Nặng';
-                }
-                
-                scoresHtml += `<li style="margin-bottom: 0.25rem;"><span style="color: rgba(255,255,255,0.7);">${assessmentName}:</span> <strong>${score}</strong>${severity ? ` (${severity})` : ''}</li>`;
-            }
-            
-            scoresHtml += '</ul></div>';
-            
-            if (mapping.phase === 'review' || mapping.phase === 'support') {
-                elements.detailInfo.innerHTML += scoresHtml;
-            }
-        }
-        
-        // Kiểm tra cờ nguy cơ
-        if (chatState.flags && chatState.flags.suicideRisk) {
-            const warningEl = document.createElement('div');
-            warningEl.className = 'warning-alert';
-            warningEl.style.marginTop = '0.75rem';
-            warningEl.style.padding = '0.5rem 0.75rem';
-            warningEl.style.borderRadius = '4px';
-            warningEl.style.backgroundColor = 'rgba(var(--color-highlight-secondary), 0.2)';
-            warningEl.style.borderLeft = '3px solid rgb(var(--color-highlight-secondary))';
-            
-            warningEl.innerHTML = `
-                <p style="margin: 0; font-weight: 500; color: rgb(var(--color-highlight-secondary));">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
-                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-                        <line x1="12" y1="9" x2="12" y2="13"></line>
-                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                    </svg>
-                    Cần hỗ trợ ngay lập tức
-                </p>
-            `;
-            
-            if (mapping.phase === 'review' || mapping.phase === 'support' || mapping.phase === 'detailed') {
-                elements.detailInfo.appendChild(warningEl);
-            }
-        }
-    }
-    
-    // Khởi tạo
-    function init() {
-        initElements();
-        setupEventListeners();
-    }
-    
-    // API công khai
-    return {
-        init: init,
-        updateProgress: updateUI
-    };
-})();
-
-// Khởi tạo khi trang đã tải
-document.addEventListener('DOMContentLoaded', function() {
-    // Khởi tạo quản lý tiến trình
-    ProgressManager.init();
-    initProgressDashboardToggle();
-    
-    // Thay thế các hàm cập nhật tiến trình trong các hàm chính của chat.js
-    
-    // Trong hàm checkForWelcomeMessage
-    const originalCheckForWelcomeMessage = checkForWelcomeMessage;
-    window.checkForWelcomeMessage = function() {
-        const result = originalCheckForWelcomeMessage();
-        
-        // Cập nhật thanh tiến trình với trạng thái hiện tại
-        ProgressManager.updateProgress(loadChatStateFromLocalStorage());
-        
-        return result;
-    };
-    
-    // Thay thế trong sendMessageToServer
-    const originalSendMessageToServer = sendMessageToServer;
-    window.sendMessageToServer = function(message) {
-        // Gọi hàm gốc
-        originalSendMessageToServer(message);
-        
-        // Monitor fetch responses để cập nhật tiến trình
-        const originalFetch = window.fetch;
-        window.fetch = function() {
-            return originalFetch.apply(this, arguments)
-                .then(response => {
-                    if (arguments[0].includes('/api/send_message')) {
-                        response.clone().json().then(data => {
-                            if (data.chatState) {
-                                // Cập nhật tiến trình với animation
-                                ProgressManager.updateProgress(data.chatState, true);
-                            }
-                        }).catch(() => {});
-                    }
-                    return response;
-                });
-        };
-    };
-    
-    // Thay thế trong restartChat
-    const originalRestartChat = restartChat;
-    window.restartChat = function() {
-        // Gọi hàm gốc
-        originalRestartChat();
-        
-        // Monitor fetch response
-        const originalFetch = window.fetch;
-        window.fetch = function() {
-            return originalFetch.apply(this, arguments)
-                .then(response => {
-                    if (arguments[0].includes('/api/restart')) {
-                        response.clone().json().then(data => {
-                            if (data.chatState) {
-                                // Reset tiến trình không animation
-                                ProgressManager.updateProgress(data.chatState, false);
-                            }
-                        }).catch(() => {});
-                    }
-                    return response;
-                });
-        };
-    };
-});
-
-function initProgressDashboardToggle() {
-    const toggleButton = document.getElementById('toggle-progress');
-    const progressDashboard = document.querySelector('.progress-dashboard');
-    
-    // Exit if elements don't exist
-    if (!toggleButton || !progressDashboard) return;
-    
-    // Initial state is collapsed
-    let isExpanded = false;
-    
-    // Function to toggle dashboard visibility
-    function toggleDashboard() {
-        isExpanded = !isExpanded;
-        
-        if (isExpanded) {
-            progressDashboard.classList.add('expanded');
-            toggleButton.classList.add('expanded');
-            toggleButton.setAttribute('title', 'Ẩn bảng tiến trình');
-        } else {
-            progressDashboard.classList.remove('expanded');
-            toggleButton.classList.remove('expanded');
-            toggleButton.setAttribute('title', 'Hiển thị bảng tiến trình');
-        }
-        
-        // Store preference in localStorage
-        localStorage.setItem('progressDashboardExpanded', isExpanded);
-        
-        // If expanded, scroll to make sure it's visible
-        if (isExpanded) {
-            setTimeout(() => {
-                progressDashboard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
-        }
-    }
-    
-    // Attach click event
-    toggleButton.addEventListener('click', toggleDashboard);
-    
-    // Check if there's a saved preference
-    const savedPreference = localStorage.getItem('progressDashboardExpanded');
-    
-    // Only auto-expand if explicitly saved as true
-    if (savedPreference === 'true') {
-        toggleDashboard();
-    }
-    
-    // Modify the ProgressManager.updateProgress function to show dashboard on important updates
-    if (window.ProgressManager && window.ProgressManager.updateProgress) {
-        const originalUpdateProgress = window.ProgressManager.updateProgress;
-        
-        window.ProgressManager.updateProgress = function(chatState, animate) {
-            // Call the original function
-            originalUpdateProgress(chatState, animate);
-            
-            // Auto-expand on important state changes 
-            if (chatState && chatState.state) {
-                const importantStates = ['summary', 'suicide_assessment'];
-                if (importantStates.includes(chatState.state) && !isExpanded) {
-                    toggleDashboard();
-                }
-            }
-        };
-    }
-}

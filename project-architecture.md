@@ -2,147 +2,252 @@
 
 ## Tổng quan dự án
 
-Chatbot Sức khỏe Tâm thần là một ứng dụng web chatbot sàng lọc sức khỏe tâm thần, được xây dựng trên Flask và tích hợp với mô hình AI Llama 3.3 70B thông qua Together AI. Ứng dụng được thiết kế để cung cấp công cụ sàng lọc ban đầu về các vấn đề sức khỏe tâm thần phổ biến như trầm cảm, lo âu và căng thẳng, với trọng tâm là hỗ trợ tiếng Việt.
+Chatbot Sức khỏe Tâm thần là một ứng dụng web sàng lọc sức khỏe tâm thần, được xây dựng trên Flask và hỗ trợ hai phương thức tương tác khác nhau: phiên bản Poll thuần túy và phiên bản AI kết hợp chat. Phiên bản AI tích hợp với mô hình Llama 3.3 70B thông qua Together AI. Ứng dụng được thiết kế để cung cấp công cụ sàng lọc ban đầu về các vấn đề sức khỏe tâm thần phổ biến như trầm cảm, lo âu và căng thẳng, với trọng tâm là hỗ trợ tiếng Việt.
 
 ## Kiến trúc hệ thống
 
 ### 1. Kiến trúc tổng thể
 
-Dự án được xây dựng theo mô hình MVC (Model-View-Controller) với các thành phần chính:
+Dự án được xây dựng theo mô hình MVC (Model-View-Controller) với hai phiên bản giao diện người dùng:
 
 - **Backend**: Flask (Python)
-- **Frontend**: HTML, CSS, JavaScript với Jinja2 Templates
+- **Frontend**: 
+  - Phiên bản Poll: HTML, CSS, JavaScript
+  - Phiên bản AI: HTML, CSS, JavaScript + Together AI
 - **Database**: Hiện tại sử dụng lưu trữ tạm thời (session storage và localStorage)
-- **AI Integration**: Together AI API (Llama 3.3 70B)
+- **AI Integration**: Together AI API (Llama 3.3 70B) - chỉ cho phiên bản AI
 
 ### 2. Cấu trúc thư mục
 
 ```
 mental-health-chatbot-flask/
-├── app.py                  # File Flask chính
+├── app.py                  # File Flask chính (với routes cho cả 2 phiên bản)
 ├── config.py               # Cấu hình
 ├── static/                 # Tài nguyên tĩnh (CSS, JS, images)
 │   ├── css/
+│   │   └── style.css       # Stylesheet chung
 │   ├── js/
+│   │   ├── chat.js         # JavaScript cho phiên bản AI
+│   │   └── logic.js        # JavaScript cho phiên bản Poll
 │   └── images/
 ├── templates/              # Templates HTML
+│   ├── base.html           # Template cơ sở
+│   ├── index.html          # Giao diện phiên bản AI
+│   ├── logic.html          # Giao diện phiên bản Poll
+│   └── home.html           # Trang chọn phiên bản
 ├── utils/                  # Các module tiện ích
 │   ├── together_ai.py      # Xử lý Together AI API
 │   ├── chat_logic.py       # Logic điều khiển luồng chat
+│   ├── logic_poll.py       # Logic điều khiển luồng poll thuần túy
 │   ├── scoring.py          # Tính điểm và xác định mức độ
 │   └── contextual_prompt.py # Tạo prompt cho AI
 ├── data/                   # Dữ liệu cho ứng dụng
 │   ├── questionnaires.py   # Dữ liệu bộ câu hỏi
+│   ├── question_bank.py    # Ngân hàng câu hỏi tự nhiên
+│   ├── conversation_map.py # Bản đồ trò chuyện
 │   ├── resources.py        # Tài nguyên hỗ trợ
 │   └── diagnostic.py       # Tiêu chí chẩn đoán
 ```
 
-## Kỹ thuật điều hướng trò chuyện (Conversation Routing)
+## Hai phiên bản tương tác
 
-### 1. Hybrid State Machine + LLM Approach
+### 1. Phiên bản Poll (Logic Mode)
 
-Hệ thống sử dụng một cách tiếp cận hybrid kết hợp giữa máy trạng thái (state machine) và mô hình ngôn ngữ lớn:
+- **Truy cập**: `/logic`
+- **Đặc điểm**:
+  - Giao diện poll trắc nghiệm thuần túy
+  - Không sử dụng AI
+  - Luồng xử lý tuyến tính và xác định
+  - Tập trung vào việc thu thập dữ liệu nhanh chóng
+  - Bắt đầu ngay với bộ sàng lọc ban đầu, bỏ qua giai đoạn trò chuyện
 
-- **Máy trạng thái**: Core của hệ thống sử dụng máy trạng thái được định nghĩa sẵn để kiểm soát luồng trò chuyện và đảm bảo tính nhất quán.
-- **LLM Enhancement**: Tích hợp LLM (Llama 3.3 70B) để làm phong phú phản hồi, làm cho cuộc trò chuyện tự nhiên và đồng cảm hơn.
+### 2. Phiên bản AI (Chat Mode)
 
-Mô hình này đảm bảo độ tin cậy của state machine trong khi vẫn tận dụng khả năng ngôn ngữ tự nhiên của LLM.
+- **Truy cập**: `/ai`
+- **Đặc điểm**:
+  - Kết hợp chat tự nhiên và poll
+  - Tích hợp với Together AI (Llama 3.3 70B)
+  - Mô phỏng trò chuyện tự nhiên với chuyên gia
+  - Thu thập dữ liệu thông qua cuộc trò chuyện
+  - Chuyển sang poll cho các đánh giá chuyên sâu
 
-### 2. Các trạng thái trò chuyện
+### 3. Trang chọn phiên bản
 
-Hệ thống sử dụng 10 trạng thái chính để điều hướng cuộc trò chuyện:
+- **Truy cập**: `/` (trang chủ)
+- **Đặc điểm**:
+  - Cho phép người dùng lựa chọn phiên bản họ muốn sử dụng
+  - Mô tả ngắn gọn đặc điểm của mỗi phiên bản
+  - Thiết kế thân thiện với người dùng
 
+## Kỹ thuật điều hướng trò chuyện
+
+### 1. Phiên bản Poll (Logic Mode)
+
+Sử dụng máy trạng thái (state machine) đơn giản với các trạng thái:
+```python
+POLL_STATES = {
+    'GREETING': 'greeting',
+    'INITIAL_SCREENING': 'initial_screening',
+    'DETAILED_ASSESSMENT': 'detailed_assessment',
+    'ADDITIONAL_ASSESSMENT': 'additional_assessment',
+    'SUICIDE_ASSESSMENT': 'suicide_assessment',
+    'SUMMARY': 'summary',
+    'RESOURCES': 'resources'
+}
+```
+
+Quy trình xử lý:
+1. Bắt đầu với màn hình chào mừng
+2. Chuyển thẳng đến bộ sàng lọc ban đầu (initialScreening)
+3. Dựa vào kết quả, chuyển đến đánh giá chi tiết hoặc tổng kết
+4. Hiển thị tài nguyên phù hợp
+5. Toàn bộ giao diện dưới dạng poll với các tùy chọn trắc nghiệm
+
+### 2. Phiên bản AI (Chat Mode)
+
+Kết hợp máy trạng thái và LLM:
 ```python
 CHAT_STATES = {
-    'GREETING': 'greeting',               # Chào hỏi ban đầu
-    'COLLECTING_ISSUE': 'collecting_issue', # Thu thập vấn đề người dùng
-    'INITIAL_SCREENING': 'initial_screening', # Sàng lọc ban đầu
-    'DETAILED_ASSESSMENT': 'detailed_assessment', # Đánh giá chi tiết
-    'ADDITIONAL_ASSESSMENT': 'additional_assessment', # Đánh giá bổ sung
-    'SUICIDE_ASSESSMENT': 'suicide_assessment', # Đánh giá nguy cơ tự tử
-    'SUMMARY': 'summary',                 # Tóm tắt kết quả
-    'RESOURCES': 'resources',             # Cung cấp tài nguyên
-    'DISORDER_INFO': 'disorder_info',     # Thông tin về rối loạn
-    'CLOSING': 'closing'                  # Kết thúc cuộc trò chuyện
+    'GREETING': 'greeting',
+    'COLLECTING_ISSUE': 'collecting_issue',
+    'NATURAL_CONVERSATION': 'natural_conversation',
+    'POLL_INTERACTION': 'poll_interaction',
+    'INITIAL_SCREENING': 'initial_screening',
+    'DETAILED_ASSESSMENT': 'detailed_assessment',
+    'ADDITIONAL_ASSESSMENT': 'additional_assessment',
+    'SUICIDE_ASSESSMENT': 'suicide_assessment',
+    'SUMMARY': 'summary',
+    'RESOURCES': 'resources',
+    'DISORDER_INFO': 'disorder_info',
+    'CLOSING': 'closing'
 }
 ```
 
-Mỗi trạng thái có một handler function riêng, xử lý việc xác định phản hồi và trạng thái tiếp theo.
+Quy trình xử lý:
+1. Bắt đầu với chat tự nhiên (greeting, collecting_issue)
+2. Chuyển sang natural_conversation để thu thập dữ liệu từ 10 câu hỏi ban đầu
+3. Phân tích câu trả lời tự nhiên và chuyển thành điểm số
+4. Chuyển sang poll_interaction cho các bộ đánh giá chuyên sâu
+5. Trở lại chat cho phần tổng kết và tài nguyên
 
-### 3. Quy trình xử lý tin nhắn
+## Bản đồ trò chuyện tự nhiên
 
-```
-User Message → process_message() → handler function → Determine next state → AI enhancement (optional) → Response
-```
-
-Cụ thể:
-1. Người dùng gửi tin nhắn
-2. `process_message()` xác định trạng thái hiện tại và chuyển tin nhắn tới handler thích hợp
-3. Handler xử lý tin nhắn, cập nhật trạng thái chat và xác định trạng thái tiếp theo
-4. Nếu AI mode được bật, phản hồi được tăng cường bằng LLM
-5. Phản hồi được gửi về client
-
-### 4. Bộ câu hỏi và đánh giá tự động
-
-Hệ thống sử dụng các bộ câu hỏi đánh giá tiêu chuẩn:
-
-- **Initial Screening**: Bộ câu hỏi sàng lọc ban đầu, xác định vấn đề chính
-- **PHQ-9**: Đánh giá trầm cảm (Patient Health Questionnaire)
-- **GAD-7**: Đánh giá lo âu (Generalized Anxiety Disorder Assessment)
-- **DASS-21**: Đánh giá căng thẳng (Depression, Anxiety and Stress Scale)
-- **Suicide Risk Assessment**: Đánh giá nguy cơ tự tử trong trường hợp phát hiện dấu hiệu
-
-Điều hướng giữa các bộ câu hỏi được thực hiện tự động dựa trên kết quả:
+Đối với phiên bản AI, hệ thống sử dụng bản đồ trò chuyện (conversation map) để chuyển tiếp giữa các chủ đề một cách tự nhiên:
 
 ```python
-"nextAssessment": {
-    "depression": "phq9",
-    "anxiety": "gad7",
-    "stress": "dass21_stress"
+CONVERSATION_MAP = {
+    "greeting": {
+        "next": ["feeling_tired", "worried", "sad_feelings"],
+        "transition_conditions": {}
+    },
+    
+    "feeling_tired": {
+        "next": ["sleep_issues", "sad_feelings", "worried"],
+        "transition_conditions": {
+            "high_score": "sad_feelings"
+        }
+    },
+    ...
 }
 ```
+
+Bản đồ này cho phép:
+- Xác định chủ đề tiếp theo dựa trên điểm số và chủ đề hiện tại
+- Tạo cảm giác trò chuyện tự nhiên thay vì khảo sát tuyến tính
+- Ưu tiên các chủ đề dựa trên phản hồi của người dùng
 
 ## Contextual Prompt Engineering
 
-### 1. Dynamic Prompt Construction
+Trong phiên bản AI, hệ thống xây dựng prompt động cho LLM dựa trên:
 
-File `contextual_prompt.py` xây dựng prompt động cho LLM dựa trên:
 - Trạng thái hiện tại của cuộc trò chuyện
 - Lịch sử trò chuyện gần đây
 - Thông tin về câu hỏi và đánh giá hiện tại
 - Kết quả và điểm số đã tích lũy
 
-Prompt được cấu trúc với:
-- Thông tin vai trò (Trợ lý sức khỏe tâm thần)
-- Nhiệm vụ và giới hạn (không đưa ra chẩn đoán y tế)
-- Thông tin về trạng thái hiện tại
-- Lịch sử trò chuyện
-- Hướng dẫn đánh giá và phản hồi dựa trên trạng thái
+```python
+prompt = f"""
+Bạn là một trợ lý AI chuyên về sàng lọc sức khỏe tâm thần, được thiết kế để hỗ trợ đánh giá sơ bộ 
+các vấn đề sức khỏe tâm thần phổ biến như trầm cảm, lo âu và căng thẳng. Bạn giao tiếp với người dùng 
+bằng tiếng Việt, với giọng điệu chuyên nghiệp, đồng cảm và hỗ trợ.
 
-### 2. Tích hợp with Together AI
+THÔNG TIN HIỆN TẠI:
+- Trạng thái chat: {state}
+- Chế độ giao diện: {interface}
+- Đánh giá hiện tại: {current_assessment}
+...
+"""
+```
 
-File `together_ai.py` xử lý việc tương tác với API Together AI:
-- Khởi tạo client với API key
-- Tạo chat completion với contextual prompt
-- Xử lý response và trích xuất text
-- Fallback gracefully khi API call thất bại
+## Xử lý API và Endpoints
+
+### 1. Endpoints chung
+
+- `/`: Trang chủ, cho phép chọn phiên bản
+- `/api/restart`: Khởi động lại trò chuyện/khảo sát
+
+### 2. Endpoints riêng
+
+**Phiên bản Poll:**
+- `/logic`: Route cho giao diện poll
+- `/api/poll_flow`: Xử lý luồng poll thuần túy
+
+**Phiên bản AI:**
+- `/ai`: Route cho giao diện chat + poll
+- `/api/send_message`: Xử lý tin nhắn chat
 
 ## Kỹ thuật quản lý state và storage
 
-### 1. Server-side State Management
+### 1. Phiên bản Poll (Logic Mode)
 
-- Sử dụng Dict Python để lưu trữ trạng thái cuộc trò chuyện, bao gồm:
-  - Trạng thái hiện tại (`state`)
-  - Đánh giá hiện tại (`currentAssessment`)
-  - Chỉ số câu hỏi hiện tại (`currentQuestionIndex`)
-  - Phản hồi của người dùng (`userResponses`)
-  - Điểm số và mức độ nghiêm trọng (`scores`, `severityLevels`)
-  - Cờ cảnh báo (`flags`)
+**Server-side State:**
+```python
+{
+    'sessionId': str(uuid.uuid4()),
+    'state': POLL_STATES['GREETING'],
+    'currentAssessment': None,
+    'currentQuestionIndex': 0,
+    'totalQuestions': 0,
+    'userResponses': {},
+    'scores': {},
+    'severityLevels': {},
+    'flags': {
+        'suicideRisk': False
+    }
+}
+```
 
-### 2. Client-side Storage
+**Client-side Storage:**
+- Lưu trạng thái poll trong localStorage
+- Lưu lịch sử câu trả lời
 
-- Sử dụng localStorage để lưu trữ lịch sử trò chuyện và trạng thái
-- Hỗ trợ tải lại trang mà không mất context
+### 2. Phiên bản AI (Chat Mode)
+
+**Server-side State:**
+```python
+{
+    'state': CHAT_STATES['GREETING'],
+    'currentAssessment': None,
+    'currentQuestionIndex': 0,
+    'currentQuestionId': None,
+    'naturalConversation': {
+        'askedQuestions': [],
+        'scores': {},
+        'summaryAnswers': {},
+    },
+    'userResponses': {},
+    'scores': {},
+    'severityLevels': {},
+    'flags': {
+        'suicideRisk': False
+    },
+    'interfaceMode': 'chat',
+    'botMessage': '...'
+}
+```
+
+**Client-side Storage:**
+- Lưu lịch sử trò chuyện và trạng thái trong localStorage
 - Đồng bộ trạng thái giữa client và server
 
 ## Xử lý nguy cơ (Risk Handling)
@@ -151,55 +256,41 @@ Hệ thống có cơ chế phát hiện và can thiệp tự động khi phát h
 
 1. **Phát hiện nguy cơ**:
    - Xác định câu hỏi có cờ `suicide_risk`
-   - Kiểm tra phản hồi có vượt ngưỡng không
+   - Kiểm tra phản hồi vượt ngưỡng
 
 2. **Can thiệp tự động**:
-   - Chuyển sang trạng thái `SUICIDE_ASSESSMENT`
+   - Chuyển sang `SUICIDE_ASSESSMENT`
    - Cung cấp thông báo khẩn cấp và tài nguyên
    - Hiển thị đường dây nóng và hướng dẫn hỗ trợ
 
-## Tạo Scoring và Diagnostics
+## Tính năng chuyển đổi khi lỗi
 
-### 1. Hệ thống tính điểm
+Khi phiên bản AI gặp lỗi, hệ thống cung cấp cơ chế chuyển sang phiên bản Poll:
 
-File `scoring.py` xử lý:
-- Tính tổng điểm cho từng danh mục (trầm cảm, lo âu, căng thẳng)
-- Xác định mức độ nghiêm trọng dựa trên ngưỡng tiêu chuẩn
-- Kiểm tra các cờ rủi ro
-
-### 2. Tiêu chí chẩn đoán
-
-File `diagnostic.py` cung cấp:
-- Thông tin chẩn đoán dựa trên DSM-5 và ICD-11
-- Mô tả triệu chứng, tiêu chí, mức độ nghiêm trọng
-- Phương pháp điều trị tiềm năng
-- Thông tin để người dùng hiểu rõ hơn về tình trạng của họ
-
-## UI/UX và Tương tác người dùng
-
-### 1. Responsive Design
-
-- Giao diện thích ứng với nhiều kích thước màn hình
-- Xử lý tin nhắn và hiệu ứng mượt mà
-
-### 2. Contextual Mode Switching
-
-- Toggle giữa AI Mode và Logic Mode
-- Hiển thị trạng thái đánh giá hiện tại
-- Markdown rendering cho phản hồi được định dạng
-
-### 3. Progressive Disclosure
-
-- Cung cấp thông tin theo cách tiếp cận dần dần
-- Hiển thị tài nguyên phù hợp với mức độ nghiêm trọng
+```javascript
+function showErrorMessage(errorMessage) {
+    // ...
+    retryButton.textContent = "Chuyển sang phiên bản Poll";
+    retryButton.addEventListener('click', function() {
+        // Chuyển hướng sang phiên bản poll
+        window.location.href = '/logic';
+    });
+    // ...
+}
+```
 
 ## Tổng kết
 
-Chatbot Sức khỏe Tâm thần là một ví dụ về ứng dụng kết hợp giữa rule-based system truyền thống và khả năng của LLM. Bằng cách sử dụng máy trạng thái cốt lõi kết hợp với khả năng ngôn ngữ tự nhiên của Llama 3.3 70B, hệ thống cung cấp trải nghiệm trò chuyện tự nhiên mà vẫn đảm bảo tính chính xác và an toàn trong lĩnh vực nhạy cảm như sức khỏe tâm thần.
+Chatbot Sức khỏe Tâm thần cung cấp hai phương thức tương tác khác nhau:
 
-Cách tiếp cận hybrid này cho phép:
-1. Độ tin cậy và kiểm soát của flow cuộc trò chuyện
-2. Khả năng mở rộng dễ dàng với bộ câu hỏi mới
-3. Phản hồi tự nhiên và đồng cảm từ mô hình ngôn ngữ
+1. **Phiên bản Poll (Logic Mode)**:
+   - Đơn giản, nhanh chóng và hiệu quả
+   - Phù hợp với người dùng ưu tiên tốc độ và tính trực tiếp
+   - Không phụ thuộc vào AI, đảm bảo hoạt động ổn định
 
-Ứng dụng có thể được cải thiện trong tương lai với các tính năng như lưu trữ dữ liệu dài hạn, theo dõi tiến triển, và tích hợp nhiều bộ đánh giá chuyên sâu hơn.
+2. **Phiên bản AI (Chat Mode)**:
+   - Trải nghiệm trò chuyện tự nhiên và đồng cảm
+   - Kết hợp chat và poll để tối ưu trải nghiệm
+   - Sử dụng LLM để tạo phản hồi phong phú
+
+Cả hai phiên bản đều sử dụng cùng một cơ sở kiến thức và bộ câu hỏi đánh giá tiêu chuẩn, đảm bảo kết quả nhất quán dù người dùng chọn phương thức tương tác nào. Thiết kế này cho phép ứng dụng vừa tận dụng sức mạnh của AI, vừa đảm bảo hoạt động ổn định với phiên bản không phụ thuộc AI.
