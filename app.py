@@ -53,30 +53,37 @@ def send_message():
         message_history = data.get('messageHistory', [])  # Lấy lịch sử từ client
         client_chat_state = data.get('chatState')  # Lấy trạng thái chat từ client
         
-        # Thêm session ID nếu chưa có để làm khóa cho phân tích
-        if client_chat_state and 'sessionId' not in client_chat_state:
-            session_id = str(uuid.uuid4())
-            client_chat_state['sessionId'] = session_id
+        # Xác thực và chuẩn hóa trạng thái từ client
+        if client_chat_state:
+            # Thêm sessionId nếu chưa có
+            if 'sessionId' not in client_chat_state:
+                client_chat_state['sessionId'] = str(uuid.uuid4())
+            
+            # Đảm bảo interfaceMode luôn tồn tại
+            if 'interfaceMode' not in client_chat_state:
+                client_chat_state['interfaceMode'] = 'chat'
+                
+            chat_state = client_chat_state
+        else:
+            # Khởi tạo mới nếu không có
+            chat_state = initialize_chat('ai')
         
-        # Xác định chế độ (ai hoặc logic)
-        interface_mode = client_chat_state.get('interfaceMode', 'chat') if client_chat_state else 'chat'
+        # Lưu trạng thái giao diện hiện tại trước khi xử lý
+        current_interface_mode = chat_state.get('interfaceMode', 'chat')
+        logger.info(f"Interface mode before processing: {current_interface_mode}")
         
-        # Sử dụng chat state từ client nếu có, không thì khởi tạo mới
-        chat_state = client_chat_state if client_chat_state else initialize_chat(
-            'logic' if interface_mode == 'poll' else 'ai'
-        )
-        
-        # Xử lý tin nhắn - sẽ trả về phản hồi ngay lập tức
+        # Xử lý tin nhắn - sẽ trả về trạng thái mới
         updated_chat_state = process_message(chat_state.copy(), user_message)
+        logger.info(f"State after processing: {updated_chat_state.get('state')}")
+        logger.info(f"Interface mode after processing: {updated_chat_state.get('interfaceMode')}")
         
         bot_response = ''
         poll_options = []
         
-        # Sử dụng AI nếu được yêu cầu và trong chế độ AI (không phải chế độ logic)
-        if use_ai and interface_mode != 'poll':
+        # Sử dụng AI nếu được yêu cầu và không ở chế độ poll
+        if use_ai and current_interface_mode != 'poll':
             try:
                 # Tạo contextual prompt
-                from utils.contextual_prompt import create_contextual_prompt
                 contextual_prompt = create_contextual_prompt(updated_chat_state, user_message, message_history)
                 
                 # Gọi Together API với lịch sử từ client
@@ -86,30 +93,53 @@ def send_message():
                     # Trích xuất phản hồi từ API
                     bot_response = extract_text_from_response(ai_response)
                 else:
-                    # Fallback to logic mode
+                    # Fallback to logic mode với cập nhật đầy đủ
                     logger.warning("AI response failed, falling back to logic mode")
-                    bot_response = updated_chat_state.get('botMessage', '')
+                    fallback_state = process_message(chat_state.copy(), user_message)
+                    bot_response = fallback_state.get('botMessage', '')
+                    # Kết hợp cả hai trạng thái để có đầy đủ thông tin
+                    # Ưu tiên trạng thái từ fallback
+                    updated_chat_state = {**updated_chat_state, **fallback_state}
             except Exception as e:
                 logger.error(f"Error using AI mode: {str(e)}")
-                bot_response = updated_chat_state.get('botMessage', '')
+                # Fallback mạnh mẽ hơn
+                fallback_state = process_message(chat_state.copy(), user_message)
+                bot_response = fallback_state.get('botMessage', '')
+                # Kết hợp trạng thái
+                updated_chat_state = {**updated_chat_state, **fallback_state}
         else:
             # Sử dụng logic cứng
             bot_response = updated_chat_state.get('botMessage', '')
             poll_options = updated_chat_state.get('pollOptions', [])
         
         # Tạo thông tin tin nhắn bot
-        bot_msg_id = str(datetime.datetime.now().timestamp())
+        bot_msg_id = f"bot-{str(datetime.datetime.now().timestamp())}"
         timestamp = datetime.datetime.now().strftime('%H:%M')
         
         # Tạo một đối tượng với thông tin chi tiết về đánh giá hiện tại
         assessment_details = {}
-        if updated_chat_state.get('currentAssessment') in questionnaires:
-            current_assessment = questionnaires[updated_chat_state.get('currentAssessment')]
+        current_assessment_id = updated_chat_state.get('currentAssessment')
+        if current_assessment_id in questionnaires:
+            current_assessment = questionnaires[current_assessment_id]
             assessment_details = {
                 'name': current_assessment.get('name', ''),
                 'description': current_assessment.get('description', ''),
                 'id': current_assessment.get('id', '')
             }
+        
+        # Đảm bảo các field quan trọng luôn tồn tại trong trạng thái trả về
+        final_chat_state = {
+            'sessionId': updated_chat_state.get('sessionId', str(uuid.uuid4())),
+            'state': updated_chat_state.get('state', ''),
+            'currentAssessment': updated_chat_state.get('currentAssessment'),
+            'currentQuestionIndex': updated_chat_state.get('currentQuestionIndex', 0),
+            'totalQuestions': get_total_questions(updated_chat_state),
+            'scores': updated_chat_state.get('scores', {}),
+            'severityLevels': updated_chat_state.get('severityLevels', {}),
+            'flags': updated_chat_state.get('flags', {}),
+            'assessmentDetails': assessment_details,
+            'interfaceMode': updated_chat_state.get('interfaceMode', current_interface_mode)
+        }
         
         # Trả về phản hồi và trạng thái chat mới
         response = {
@@ -117,23 +147,18 @@ def send_message():
             'id': bot_msg_id,
             'timestamp': timestamp,
             'state': updated_chat_state.get('state', ''),
-            'chatState': {
-                'sessionId': updated_chat_state.get('sessionId', str(uuid.uuid4())),
-                'state': updated_chat_state.get('state', ''),
-                'currentAssessment': updated_chat_state.get('currentAssessment'),
-                'currentQuestionIndex': updated_chat_state.get('currentQuestionIndex', 0),
-                'totalQuestions': get_total_questions(updated_chat_state),
-                'scores': updated_chat_state.get('scores', {}),
-                'severityLevels': updated_chat_state.get('severityLevels', {}),
-                'flags': updated_chat_state.get('flags', {}),
-                'assessmentDetails': assessment_details,
-                'interfaceMode': updated_chat_state.get('interfaceMode', 'chat')
-            }
+            'chatState': final_chat_state,
+            'botMessage': updated_chat_state.get('botMessage', bot_response)
         }
         
         # Thêm poll options nếu có
-        if poll_options:
-            response['pollOptions'] = poll_options
+        if poll_options or updated_chat_state.get('pollOptions'):
+            response['pollOptions'] = poll_options or updated_chat_state.get('pollOptions', [])
+        
+        # Log thông tin debug
+        logger.info(f"Response interface mode: {final_chat_state['interfaceMode']}")
+        if 'pollOptions' in response:
+            logger.info(f"Poll options included, count: {len(response['pollOptions'])}")
         
         return jsonify(response)
         
@@ -168,29 +193,34 @@ def restart_chat():
         welcome_message = {
             'role': 'assistant',
             'content': new_chat_state.get('botMessage', ''),
-            'id': 'welcome-message-restart',
+            'id': f'welcome-message-{str(uuid.uuid4())}',
             'timestamp': datetime.datetime.now().strftime('%H:%M')
         }
+        
+        # Tạo đối tượng trạng thái đầy đủ 
+        final_chat_state = {
+            'sessionId': new_chat_state.get('sessionId', str(uuid.uuid4())),
+            'state': new_chat_state.get('state', ''),
+            'currentAssessment': new_chat_state.get('currentAssessment'),
+            'currentQuestionIndex': new_chat_state.get('currentQuestionIndex', 0),
+            'totalQuestions': get_total_questions(new_chat_state),
+            'scores': new_chat_state.get('scores', {}),
+            'severityLevels': new_chat_state.get('severityLevels', {}),
+            'flags': new_chat_state.get('flags', {}),
+            'interfaceMode': new_chat_state.get('interfaceMode', 'chat'),
+            'assessmentDetails': {
+                'name': 'Bắt đầu trò chuyện' if mode == 'ai' else 'Sàng lọc Ban đầu',
+                'description': 'Chào mừng bạn đến với Trợ lý Sức khỏe Tâm thần',
+                'id': 'greeting' if mode == 'ai' else 'initialScreening'
+            }
+        }
+        
+        logger.info(f"Restarted chat with mode: {mode}, interface: {final_chat_state['interfaceMode']}")
         
         return jsonify({
             'success': True,
             'welcomeMessage': welcome_message,
-            'chatState': {
-                'state': new_chat_state.get('state', ''),
-                'currentAssessment': new_chat_state.get('currentAssessment'),
-                'currentQuestionIndex': new_chat_state.get('currentQuestionIndex', 0),
-                'totalQuestions': get_total_questions(new_chat_state),
-                'scores': new_chat_state.get('scores', {}),
-                'severityLevels': new_chat_state.get('severityLevels', {}),
-                'flags': new_chat_state.get('flags', {}),
-                'interfaceMode': new_chat_state.get('interfaceMode', 'chat'),
-                # Thêm thông tin chi tiết về giai đoạn greeting
-                'assessmentDetails': {
-                    'name': 'Bắt đầu trò chuyện' if mode == 'ai' else 'Sàng lọc Ban đầu',
-                    'description': 'Chào mừng bạn đến với Trợ lý Sức khỏe Tâm thần',
-                    'id': 'greeting' if mode == 'ai' else 'initialScreening'
-                }
-            }
+            'chatState': final_chat_state
         })
         
     except Exception as e:
@@ -199,6 +229,7 @@ def restart_chat():
             'error': str(e),
             'success': False
         }), 500
+
 def get_assessment_details(assessment_id):
     """
     Hàm trợ giúp để lấy thông tin chi tiết về bộ đánh giá
