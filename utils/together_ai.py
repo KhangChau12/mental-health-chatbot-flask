@@ -58,8 +58,13 @@ def generate_chat_completion(messages, contextual_prompt=None):
         
         # Thêm tin nhắn người dùng
         for msg in messages:
+            # Sửa đổi ở đây: Chuyển đổi 'bot' thành 'assistant'
+            role = msg.get("role", "user")
+            if role == "bot":
+                role = "assistant"
+            
             api_messages.append({
-                "role": msg.get("role", "user"),
+                "role": role,
                 "content": msg.get("content", "")
             })
         
